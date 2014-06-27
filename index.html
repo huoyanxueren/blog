@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Language" contect="zh-CN">
+  <meta name="DEscription" contect="潘俊俊 ITCamel itcamel 技术博客 java">
+  <meta name="msvalidate.01" content="E9ABDA0017F73425E87A682DB620B6B6" />
+  
+  <title>ITCamel</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta content="website" property="og:type">
+<meta property="og:title">
+<meta content="www.itcamel.com/" property="og:url">
+<meta property="og:image">
+<meta content="ITCamel" property="og:site_name">
+<meta property="og:description">
+<meta content="summary" name="twitter:card">
+  
+  
+    <link rel="icon" href="/favicon.png">
+  
+  <link rel="stylesheet" href="/css/style.css" type="text/css">
+  <!--[if lt IE 9]><script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script><![endif]-->
+  <!--  -->
+  
+ 
+ <link rel="stylesheet" href="/fancybox/jquery.fancybox.css" media="screen" type="text/css">
+ 
+</head>
+
+<body>
+  <div id="container">
+    <div id="wrap">
+      <header id="header">
+  <div id="banner"></div>
+  <div id="header-outer" class="outer">
+    <div id="header-title" class="inner">
+      <h1 id="logo-wrap">
+        <a href="/" id="logo">ITCamel</a>
+      </h1>
+      
+        <h2 id="subtitle-wrap">
+          <a href="/" id="subtitle">关注IT浪潮，却在沙滩边拾捡贝壳的骆驼</a>
+        </h2>
+      
+    </div>
+    <div id="header-inner" class="inner">
+      <nav id="main-nav">
+        <a id="main-nav-toggle" class="nav-icon"></a>
+        
+          <a class="main-nav-link" href="/">Home</a>
+        
+          <a class="main-nav-link" href="/archives">Archives</a>
+        
+          <a class="main-nav-link" href="/about">About</a>
+        
+      </nav>
+      <nav id="sub-nav">
+        
+        <a id="nav-search-btn" class="nav-icon" title="Search"></a>
+      </nav>
+      <div id="search-form-wrap">
+        <form action="//google.com/search" method="get" accept-charset="UTF-8" class="search-form"><input type="search" name="q" results="0" class="search-form-input" placeholder="Search"><input type="submit" value="&#xF002;" class="search-form-submit"><input type="hidden" name="q" value="site:www.itcamel.com"></form>
+      </div>
+    </div>
+  </div>
+</header>
+
+      <div class="outer">
+        <section id="main">
+  
+    <article id="post-spring-custom-tag" class="article article-type-post" itemscope itemprop="blogPost">
+  <div class="article-meta">
+    <a href="/2014/06/24/spring-custom-tag/" class="article-date">
+  <time datetime="2014-06-24T12:28:04.000Z" itemprop="datePublished">6月 24 2014</time>
+</a>
+    
+  <div class="article-category">
+    <a class="article-category-link" href="/categories/开源框架/">开源框架</a>
+  </div>
+
+  </div>
+  <div class="article-inner">
+    
+    
+      <header class="article-header">
+        
+  
+    <h1 itemprop="name">
+      <a class="article-title" href="/2014/06/24/spring-custom-tag/">Spring自定义标签</a>
+    </h1>
+  
+
+      </header>
+    
+    <div class="article-entry" itemprop="articleBody">
+      
+        <h4 id="前言">前言</h4>
+<p>最近在看到一些开源框架的代码，诸如Spring、Dubbo、Webx3,在其中都有很多自定义的标签。这些标签见形知意，一下就显得高达上了。所以作为程序员，非常有必要掌握这个装X利器。介绍本文之前是基于大家了解XML的DTD和XSD的基础上。如果对这两块内容不熟悉的同学，请先行回炉下。<br>本文主要介绍如何基于Spring进行自定义标签的扩展，以及这块功能的实现原理。<br>
+        
+          <p class="article-more-link">
+            <a href="/2014/06/24/spring-custom-tag/#more">Read More</a>
+          </p>
+        
+      
+    </div>
+    <footer class="article-footer">
+ 
+
+      
+      
+  <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/spring/">spring</a></li></ul>
+
+    </footer>
+  </div>
+  
+</article>
+
+
+
+
+
+
+
+
+  
+    <article id="post-dependency-conflict" class="article article-type-post" itemscope itemprop="blogPost">
+  <div class="article-meta">
+    <a href="/2014/06/23/dependency-conflict/" class="article-date">
+  <time datetime="2014-06-23T01:18:36.000Z" itemprop="datePublished">6月 23 2014</time>
+</a>
+    
+  <div class="article-category">
+    <a class="article-category-link" href="/categories/系统运维/">系统运维</a>
+  </div>
+
+  </div>
+  <div class="article-inner">
+    
+    
+      <header class="article-header">
+        
+  
+    <h1 itemprop="name">
+      <a class="article-title" href="/2014/06/23/dependency-conflict/">jar依赖冲突解决实践</a>
+    </h1>
+  
+
+      </header>
+    
+    <div class="article-entry" itemprop="articleBody">
+      
+        <h2 id="前言">前言</h2>
+<p>随着功能的增多，各种中间件的引入。应用以来的各种jar的规模极具膨胀，出现jar冲突和Class冲突的问题层出不穷，让人不胜其扰。本文针对冲突，提供一个排查和定位问题的最佳实践。实践中尽量不借助第三方工具，而使用maven或者Linux的自带命令行。</p>
+<h2 id="Maven构建的应用的jar冲突">Maven构建的应用的jar冲突</h2>
+<p>目前最为最流行的项目构建和管理工具，在目前的互联网应用中被广泛使用。maven框架很大的一个便利就是对于jar的依赖管理，它自然提供了一些工具帮助开发者进行依赖分析。maven存在坐标的概念。groupId，artifactId，version三个维度定位到一个唯一的jar。</p>
+<figure class="highlight"><table><tr><td class="gutter"><pre>1
+2
+3
+4
+5
+6
+7
+</pre></td><td class="code"><pre><span class="tag">&lt;<span class="title">dependency</span>&gt;</span>
+        <span class="tag">&lt;<span class="title">groupId</span>&gt;</span>com.taobao.diamond<span class="tag">&lt;/<span class="title">groupId</span>&gt;</span>
+        <span class="tag">&lt;<span class="title">artifactId</span>&gt;</span>diamond-client<span class="tag">&lt;/<span class="title">artifactId</span>&gt;</span>
+        <span class="tag">&lt;<span class="title">version</span>&gt;</span>3.6.0<span class="tag">&lt;/<span class="title">version</span>&gt;</span> 
+        <span class="tag">&lt;<span class="title">type</span>&gt;</span>jar<span class="tag">&lt;/<span class="title">type</span>&gt;</span>
+        <span class="tag">&lt;<span class="title">scope</span>&gt;</span>compile<span class="tag">&lt;/<span class="title">scope</span>&gt;</span> 
+<span class="tag">&lt;/<span class="title">dependency</span>&gt;</span>
+</pre></td></tr></table></figure>
+
+<p>对于版本，有一个很宽泛的范围</p>
+<p><version>[3.6.0,4.0.0)</version> 要求的依赖版本&gt;=3.6.0且&lt;4.0.0</p>
+<p><version>[,3.6.0]</version> 要求的依赖版本&lt;=3.6.0<br>对于应用来讲，还是固定一个版本为好，夸版本有太多不可预知的情况存在。</p>
+
+        
+          <p class="article-more-link">
+            <a href="/2014/06/23/dependency-conflict/#more">Read More</a>
+          </p>
+        
+      
+    </div>
+    <footer class="article-footer">
+ 
+
+      
+      
+  <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/dependency/">dependency</a></li><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/maven/">maven</a></li></ul>
+
+    </footer>
+  </div>
+  
+</article>
+
+
+
+
+
+
+
+
+  
+    <article id="post-qcon-1st" class="article article-type-post" itemscope itemprop="blogPost">
+  <div class="article-meta">
+    <a href="/2014/04/25/qcon-1st/" class="article-date">
+  <time datetime="2014-04-25T09:18:34.000Z" itemprop="datePublished">4月 25 2014</time>
+</a>
+    
+  <div class="article-category">
+    <a class="article-category-link" href="/categories/交流分享/">交流分享</a>
+  </div>
+
+  </div>
+  <div class="article-inner">
+    
+    
+      <header class="article-header">
+        
+  
+    <h1 itemprop="name">
+      <a class="article-title" href="/2014/04/25/qcon-1st/">北京Qcon走马观花</a>
+    </h1>
+  
+
+      </header>
+    
+    <div class="article-entry" itemprop="articleBody">
+      
+        <h2 id="前言">前言</h2>
+<p>也不知道怎么写这个分享，就记个流水帐吧！<br>从未去过帝都，不过想来那地方是甚好的。这次能有机会去见识下，新鲜劲还是有一些的。这个要感谢下公司提供的这次宝贵机会。qcon大会我是第二次参加，第一次是12年的杭州qcon大会，协办方就是我们公司。那次大会的作用就是很大程度上去见见大观园，这个不是讲虚的，确实有疗效。这次给自己的目标有两个：第一个自己了解的领域多看看其他公司是怎么做的，跟阿里的有何不同;第二个自己不熟悉但关注的领域扫扫盲，比如云计算、大数据。所以去之前，仔细看了会议的安排和每个主题演讲的内容，选定了自己去参加的topic。带着这两个心里预期，还有HR的秘密使命，我们就奔着北京qcon去了。<br>下了飞机，在首都机场打了的士，直奔在四环的酒店。随行的博林同学做了下打车软件调查，结果这位师傅什么打车软件没使用。看来快的和嘀嘀的运营还做的不够啊。从首都机场出发3点多，从五环一路狂堵车到酒店5点多，帝都的路况还真是名副其实的糟糕。<br>PS：去的时候有点小失望，国航的飞机上都没怎么见到空姐。</p>
+<hr>
+<h2 id="qcon_1st_Day">qcon 1st Day</h2>
+<p>第一天6点半到会场签到，收获了池建强的一句话很NB的语录：“做技术的人，一定要多写文章。技术的，人文的，最好都写一点。慢慢的，科技在哪里，你就在那里了。但是最高的境界是你在哪里，科技和人文就在哪里”。会场的展台区是各个IT公司的工作人员，每个展台前都是有节操、无下限的美女，让我们这群屌丝任意消费。展会中包括IBM、腾讯、高德、七牛等大小公司都在宣传各自的“云”。展台宣传的东西除了“云”之外，另外就只有“安全”和“可穿戴设备”。这也很能说明当前业界的热点在哪里了。</p>
+<h3 id="早上的3个非主题演讲">早上的3个非主题演讲</h3>
+<p>国外公司的广告时间</p>
+<ol>
+<li>分别由AWS介绍了自己公司的nosql产品DynamoDB。（去参加qcon之前找的资料：<a href="http://aws.amazon.com/cn/dynamodb/" target="_blank">DynamonDB详细介绍</a>、<a href="http://www.programmer.com.cn/11081/" target="_blank">MongoDB的比较</a>)。</li>
+<li>大型前端应用的组件与模块。由英国金融时报实验室的一个前端哥们讲解他们的前端组件化。有个哥们整理的不错，直接粘上，因为我铁定没他整理的好（<a href="http://www.infoq.com/cn/news/2014/04/front-end-modular）。" target="_blank">http://www.infoq.com/cn/news/2014/04/front-end-modular）。</a></li>
+<li>请了一个生物学的科学家，研究生物神经的，跨界演讲，讲怎么利用大数据对鱼的神经活动进行研究，主要讲怎么研究鱼。其中利用了spark来对大数据进行计算和分析。That‘s all。整个topic听下来，对开发人员有用的就是一个词“spark”。</li>
+</ol>
+<h3 id="一、主题演讲">一、主题演讲</h3>
+<h4 id="Localization_of_Stack_Overflow_-StackOverFlow_Marco_Cecconi">Localization of Stack Overflow -StackOverFlow Marco Cecconi</h4>
+<p>stack overflow是一个大家都很熟悉的站点，大家很多的问题都在上面可以查阅到。Marco Cecconi是stack overflow的核心开发者之一，下面关于stack overflow网站架构也是由他来讲的。topic讲了讲了在8周内本地化Stack Overflow。有个观点让人印象深刻：同一个语言能够更加深入的交流，这个也是要做本地化的初衷。Marco讲到一个事情，中国的开发者在stack overflow上查阅问题的很多，但是来解答问题和交流的很少。why？Marco归咎为语言问题。对于怎么实现本地化，他讲的比较简单，我看了ppt也未看出所以然，自觉锉顿了。<br>ps：<a href="http://lanyrd.com/slides/" target="_blank">Marco blog</a><br><a href="https://speakerdeck.com/sklivvz/the-localization-of-stack-overflow-qcon-china-2014" target="_blank">PPT</a></p>
+<h4 id="OpenStack云服务平台设计与挑战_-UnitedStack_程辉">OpenStack云服务平台设计与挑战 -UnitedStack 程辉</h4>
+<p>OpenStack的开源生态在处在蓬勃房展阶段，已经有越来越多的互联网公司围绕着OpenStack建设自己的云。UnitedStack就是其中的一家。程辉作为原来新浪的员工，在新浪从事的就是Openstack相关的工作，他也是国内OpenStack的积极推广者。离职创业后，围绕OpenStack构建云服务，也成了他创业公司的基础。本次程辉也是作为qcon云主题的出品人参与的，所以他在业内也应该是相当有影响力的。Topic里面主要介绍了OpenStack的发展现状，以及产品的前景。UnitedStack围绕OpenStack构建云上已经作的工作和努力。去听这个演讲，纯属去扫盲的。不过还好，基本都听明白，再去翻了下ppt，确实扩展了一些云方面的知识。<br><a href="http://yunpan.taobao.com/share/link/A3Dty0s29" target="_blank">PPT</a></p>
+<h4 id="聚石塔：电子商务云平台_2013年双11历程_-阿里巴巴_陈皓">聚石塔：电子商务云平台 2013年双11历程 -阿里巴巴 陈皓</h4>
+<p>著名CoolShell博主耗子，目前就职于阿里云。他在本次Topic中有一个很鲜明的观点：云平台提供的不仅是资源,更是服务和解决方案。中间他也将了聚石塔是如何做平台。</p>
+<ol>
+<li>还债<br>出来混,迟早是要还的。以前欠下的债,时间越晚,偿还的利息就越多。所以,聚石塔欠下的技术债必需还。</li>
+<li>标准<br>无标准,不平台。何况是一个云平台。所以,需要建立聚石塔云平台的各种标准。</li>
+<li>管理<br>对于一个云平台来说,最重要的事情就是能把这么复杂的集群管理起来。而对于一个垂直云来说,还需要管理上面的应用业务。</li>
+<li>安全<br>聚石塔里有很多用户的数据,数据外泄一直是威胁聚石塔生存的恶魔,解决好数据安全是聚石塔头等大事。</li>
+<li>成长<br>我们必需通过种种手段,让聚石塔上的应用能跟淘宝天猫的系统的发展节奏一同成长。</li>
+</ol>
+<p>陈皓在topic里面还提到了另外一个观点：云计算就是拼运维。大家在info上也可以看看。<a href="http://www.infoq.com/cn/articles/chenhao-on-cloud?utm_source=infoq&amp;utm_medium=popular_links_homepage" target="_blank">左耳朵耗子谈云计算：拼的就是运维</a><br>当然，耗子对阿里也有诸多吐槽，此处省去800字。但是他也讲到阿里这边让他印象最深刻的是：在其他公司包括Amazon，从未见过如此热情开发工程师，效率高，Amazon干1年的活，在这里可能就干一个星期。<br>PS：这个topic人气爆棚，连地上一个屁股都放不下了，可见CoolShell的人气不是盖的。我也是陈皓的粉丝，毫不夸张的说，我们很多人都是看着CoolShell进入互联网领域的。池建强也说过这句话，可见陈皓江湖地位之尊崇。<br><a href="http://yunpan.taobao.com/share/link/23Dty0sMX" target="_blank">PPT</a></p>
+
+        
+          <p class="article-more-link">
+            <a href="/2014/04/25/qcon-1st/#more">Read More</a>
+          </p>
+        
+      
+    </div>
+    <footer class="article-footer">
+ 
+
+      
+      
+  <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/infoq/">infoq</a></li><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/qcon/">qcon</a></li><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/会议/">会议</a></li><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/北京/">北京</a></li></ul>
+
+    </footer>
+  </div>
+  
+</article>
+
+
+
+
+
+
+
+
+  
+    <article id="post-nio-grammer" class="article article-type-post" itemscope itemprop="blogPost">
+  <div class="article-meta">
+    <a href="/2013/02/26/nio-grammer/" class="article-date">
+  <time datetime="2013-02-26T04:00:00.000Z" itemprop="datePublished">2月 26 2013</time>
+</a>
+    
+  <div class="article-category">
+    <a class="article-category-link" href="/categories/Java基础/">Java基础</a>
+  </div>
+
+  </div>
+  <div class="article-inner">
+    
+    
+      <header class="article-header">
+        
+  
+    <h1 itemprop="name">
+      <a class="article-title" href="/2013/02/26/nio-grammer/">NIO学习全概括</a>
+    </h1>
+  
+
+      </header>
+    
+    <div class="article-entry" itemprop="articleBody">
+      
+        <h4 id="前言">前言</h4>
+<p>最近在看java NIO的一些中文资料，确实比较的头疼。文章的好坏良莠不齐，好的文章一看，受益不少；讲的不好的，被引得偏差了3百里才绕回来。更有的只有NIO 1.0的内容，2.0的只字未提。本文主要目的是对NIO知识系统进行总结和梳理，并给大家提供一篇“能看”且较全面的文章.</p>
+<h3 id="一、操作系统I/O模型">一、操作系统I/O模型</h3>
+<p>学习NIO的前提是了解操作系统的I/O模型。</p>
+<p>操作系统I/O模型<br><img src="http://dl.iteye.com/upload/attachment/0080/8516/4d798990-7d27-37b9-8f11-cc32d03aa564.png" alt="I/O模型"></p>
+<p>很明显，操作系统中存在着两个空间：内核空间和用户空间。用户空间就是常规的应用进程所在的空间，一个或者多个jvm实例当然也是一个用户态的进程，所以运行需要资源都在用户空间。内核空间是操作系统内核运行所在的空间。用户空间的进行没有权限直接跨过内核空间，直接跟硬件进行I/O交互。</p>
+<p>当应用进程请求 I/O 操作的时候，JVM底层会执行一个系统调用（也就是说JVM所完成的任何操作，最终是通过native来实现），系统调用时，会将控制权移交给内核。操作系统的底层函数 open( )、read( )、write( )和 close( )来完成最终和硬件的交互。当内核完成调用后，得到了应用进程所需数据，它会在内核空间的缓存区保留数据，并把数据传送到用户空间内的指定缓冲区。内核试图对数据进行高速缓存或预读取，因此进程所需数据可能已经在内核空间里了。如果是这样，该数据只需简单地拷贝出来即可。如果数据不在内核空间，则进程被挂起，内核着手把数据读进内存。</p>
+<p>现代操作系统常会用到DMA(Direct Memory Access，直接内存存取)技术，MMU（Memory Management Unit，内存管理单元）。关于这些内容，大家可以自行找谷哥。一些基于I/O中的技术经常也会提到一个词“zero-copy“，相关介绍可以看我的前一篇文章 <a href="http://go-on.iteye.com/blog/1807749" target="_blank">http://go-on.iteye.com/blog/1807749</a><br>
+        
+          <p class="article-more-link">
+            <a href="/2013/02/26/nio-grammer/#more">Read More</a>
+          </p>
+        
+      
+    </div>
+    <footer class="article-footer">
+ 
+
+      
+      
+  <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/nio/">nio</a></li></ul>
+
+    </footer>
+  </div>
+  
+</article>
+
+
+
+
+
+
+
+
+  
+    <article id="post-zero-copy" class="article article-type-post" itemscope itemprop="blogPost">
+  <div class="article-meta">
+    <a href="/2013/02/19/zero-copy/" class="article-date">
+  <time datetime="2013-02-19T02:36:21.000Z" itemprop="datePublished">2月 19 2013</time>
+</a>
+    
+  <div class="article-category">
+    <a class="article-category-link" href="/categories/Linux系统知识/">Linux系统知识</a>
+  </div>
+
+  </div>
+  <div class="article-inner">
+    
+    
+      <header class="article-header">
+        
+  
+    <h1 itemprop="name">
+      <a class="article-title" href="/2013/02/19/zero-copy/">zero-copy</a>
+    </h1>
+  
+
+      </header>
+    
+    <div class="article-entry" itemprop="articleBody">
+      
+        <p>“Zero-copy” 用来描述主机的CPU不执行将数据从一个存储区复制到另一个的任务。这经常是在网络分发文件的时候用来节省电力和内存。</p>
+<h4 id="Principle">Principle</h4>
+<p>各种操作系统上的Zero-copy方式例如设备驱动程序，文件系统，网络协议栈，大大提高了某些应用程序的性能和系统资源利用率。在数据拷贝过到另外一个机器的过程中，允许CPU并行去处理另外的一个任务，性能可以有效地提高。此外， zero-copy 操作减少了用户空间和内核空间的切换时间。让一个cpu去处理大量的数据拷贝，数据拷贝本身是一个简单任务，这是一种极大浪费，如果有其他更简单的系统组件能够代为处理，将能够有效地提高资源利用率。</p>
+<p>举个例子，读取一个文件，然后通过网络发送。如果文件足够小，并适合放在文件缓存中，传统的方式需要4个数据副本和4个cpu的上下文切换。两个数据拷贝需要用到CPU。如果通过“zero-copy”来发送，cpu上下文切换能减少到2次，CPU的数据拷贝能够减少一半，甚至不用。<a href="http://en.wikipedia.org/wiki/Zero-copy#cite_note-j-zerocopy-1" target="_blank">1</a></p>
+<p>Zero-copy 对于网络链路的容量接近或者已经超过了CPU的处理能力的高速网络尤其重要。在这种情况下，CPU几乎全花费在了拷贝要传输的数据上，这是个瓶颈，限制了通信的速率只能低于链路容量。行业内的经验，大约一个CPU时钟周期，需要处理一个传入的数据位。<br>
+        
+          <p class="article-more-link">
+            <a href="/2013/02/19/zero-copy/#more">Read More</a>
+          </p>
+        
+      
+    </div>
+    <footer class="article-footer">
+ 
+
+      
+      
+  <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/DMA/">DMA</a></li><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/MMU/">MMU</a></li><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/Zero-copy/">Zero-copy</a></li></ul>
+
+    </footer>
+  </div>
+  
+</article>
+
+
+
+
+
+
+
+
+  
+  
+    <nav id="page-nav">
+      <span class="page-number current">1</span><a class="page-number" href="/page/2/">2</a><a class="page-number" href="/page/3/">3</a><a class="extend next" href="/page/2/">Next &raquo;</a>
+    </nav>
+  
+</section>
+        
+          <aside id="sidebar">
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">Categories</h3>
+    <div class="widget">
+      <ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/Java基础/">Java基础</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Linux系统知识/">Linux系统知识</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/交流分享/">交流分享</a><span class="category-list-count">1</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/工具/">工具</a><span class="category-list-count">1</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/开源框架/">开源框架</a><span class="category-list-count">1</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/架构/">架构</a><span class="category-list-count">1</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/系统运维/">系统运维</a><span class="category-list-count">3</span></li></ul>
+    </div>
+  </div>
+
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">Tags</h3>
+    <div class="widget">
+      <ul class="tag-list"><li class="tag-list-item"><a class="tag-list-link" href="/tags/Chuwa/">Chuwa</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/DMA/">DMA</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/Flume/">Flume</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/JVM/">JVM</a><span class="tag-list-count">3</span></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/MMU/">MMU</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/SVN/">SVN</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/SVNKit/">SVNKit</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/Scribe/">Scribe</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/Zero-copy/">Zero-copy</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/dependency/">dependency</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/infoq/">infoq</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/jps/">jps</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/jstat/">jstat</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/kafka/">kafka</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/linux/">linux</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/maven/">maven</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/nio/">nio</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/qcon/">qcon</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/spring/">spring</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/会议/">会议</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/北京/">北京</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/性能优化/">性能优化</a><span class="tag-list-count">2</span></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/性能，优化，服务器，负载/">性能，优化，服务器，负载</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/日志/">日志</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/杂谈/">杂谈</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/虚拟机/">虚拟机</a><span class="tag-list-count">2</span></li></ul>
+    </div>
+  </div>
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">Tag Cloud</h3>
+    <div class="widget tagcloud">
+      <a href="/tags/Chuwa/" style="font-size: 10.00px;">Chuwa</a><a href="/tags/DMA/" style="font-size: 10.00px;">DMA</a><a href="/tags/Flume/" style="font-size: 10.00px;">Flume</a><a href="/tags/JVM/" style="font-size: 20.00px;">JVM</a><a href="/tags/MMU/" style="font-size: 10.00px;">MMU</a><a href="/tags/SVN/" style="font-size: 10.00px;">SVN</a><a href="/tags/SVNKit/" style="font-size: 10.00px;">SVNKit</a><a href="/tags/Scribe/" style="font-size: 10.00px;">Scribe</a><a href="/tags/Zero-copy/" style="font-size: 10.00px;">Zero-copy</a><a href="/tags/dependency/" style="font-size: 10.00px;">dependency</a><a href="/tags/infoq/" style="font-size: 10.00px;">infoq</a><a href="/tags/jps/" style="font-size: 10.00px;">jps</a><a href="/tags/jstat/" style="font-size: 10.00px;">jstat</a><a href="/tags/kafka/" style="font-size: 10.00px;">kafka</a><a href="/tags/linux/" style="font-size: 10.00px;">linux</a><a href="/tags/maven/" style="font-size: 10.00px;">maven</a><a href="/tags/nio/" style="font-size: 10.00px;">nio</a><a href="/tags/qcon/" style="font-size: 10.00px;">qcon</a><a href="/tags/spring/" style="font-size: 10.00px;">spring</a><a href="/tags/会议/" style="font-size: 10.00px;">会议</a><a href="/tags/北京/" style="font-size: 10.00px;">北京</a><a href="/tags/性能优化/" style="font-size: 15.00px;">性能优化</a><a href="/tags/性能，优化，服务器，负载/" style="font-size: 10.00px;">性能，优化，服务器，负载</a><a href="/tags/日志/" style="font-size: 10.00px;">日志</a><a href="/tags/杂谈/" style="font-size: 10.00px;">杂谈</a><a href="/tags/虚拟机/" style="font-size: 15.00px;">虚拟机</a>
+    </div>
+  </div>
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">Archives</h3>
+    <div class="widget">
+      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2014/06">六月 2014</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2014/04">四月 2014</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2013/02">二月 2013</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2012/11">十一月 2012</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2012/09">九月 2012</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2012/08">八月 2012</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2012/03">三月 2012</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2011/10">十月 2011</a><span class="archive-list-count">1</span></li></ul>
+    </div>
+  </div>
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">Recents</h3>
+    <div class="widget">
+      <ul>
+        
+          <li>
+            <a href="/2014/06/24/spring-custom-tag/">Spring自定义标签</a>
+          </li>
+        
+          <li>
+            <a href="/2014/06/23/dependency-conflict/">jar依赖冲突解决实践</a>
+          </li>
+        
+          <li>
+            <a href="/2014/04/25/qcon-1st/">北京Qcon走马观花</a>
+          </li>
+        
+          <li>
+            <a href="/2013/02/26/nio-grammer/">NIO学习全概括</a>
+          </li>
+        
+          <li>
+            <a href="/2013/02/19/zero-copy/">zero-copy</a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+
+  
+    <div class="widget-wrap">
+<h3 class="widget-title">友情链接</h3>
+<ul class="entry widget">
+<li><a href="http://gkbusy.iteye.com/" title="gkbusy's Blog">gkbusy的博客</a></li>
+<li><a href="http://javatar.iteye.com/" title="梁飞的博客">梁飞的博客</a></li>
+<li><a href="http://agapple.iteye.com/" title="agapple's Blog">agapple的博客</a></li>
+<li><a href="http://www.alidata.org/" title="阿里数据平台">阿里数据平台</a></li>
+<li><a href="http://www.yangbolin.github.io/myblog/" title="yangbolin">yangbolin的blog</a></li>
+</ul>
+</div>
+
+  
+    <iframe width="100%" height="550" class="share_self"  frameborder="0" scrolling="no" src="http://widget.weibo.com/weiboshow/index.php?language=&width=0&height=550&fansRow=2&ptype=1&speed=0&skin=1&isTitle=1&noborder=1&isWeibo=0&isFans=0&uid=1946907151&verifier=c39dc63c&dpc=1"></iframe>
+
+  
+</aside>
+        
+      </div>
+      <footer id="footer">
+  
+  <div class="outer">
+    <div id="footer-info" class="inner">
+      &copy; 2014 潘俊俊<br>
+      阿里巴巴资深开发工程师、Java、大数据、语言<br>
+      E-mail:1983@live.cn<br>
+      Powered by <a href="http://itcamel.com" target="_blank">潘俊俊</a>
+    </div>
+  </div>
+</footer>
+
+    </div>
+    <nav id="mobile-nav">
+  
+    <a href="/" class="mobile-nav-link">Home</a>
+  
+    <a href="/archives" class="mobile-nav-link">Archives</a>
+  
+    <a href="/about" class="mobile-nav-link">About</a>
+  
+</nav>
+    <script src="/fancybox/jquery-1.7.2.min.js"></script>
+
+
+<!-- <link rel="stylesheet" href="/fancybox/jquery.fancybox.css" media="screen" type="text/css"> -->
+<!-- <script src="/fancybox/jquery.fancybox.pack.js"></script> -->
+
+
+
+<script type="text/javascript">
+var _bdhmProtocol = (("https:" == document.location.protocol) ? " https://" : " http://");
+document.write(unescape("%3Cscript src='" + _bdhmProtocol + "hm.baidu.com/h.js%3Ff3d905ba4b2eaa8c625d50b00801cb47' type='text/javascript'%3E%3C/script%3E"));
+</script>
+
+
+
+<script type="text/javascript" src="/js/script.js"></script>
+
+  </div>
+</body>
+</html>

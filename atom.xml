@@ -1,0 +1,2111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title><![CDATA[ITCamel]]></title>
+  <subtitle><![CDATA[关注IT浪潮，却在沙滩边拾捡贝壳的骆驼]]></subtitle>
+  <link href="/atom.xml" rel="self"/>
+  <link href="www.itcamel.com/"/>
+  <updated>2014-06-27T01:27:56.666Z</updated>
+  <id>www.itcamel.com/</id>
+  
+  <author>
+    <name><![CDATA[潘俊俊]]></name>
+    <email><![CDATA[1983@live.cn]]></email>
+  </author>
+  
+  <generator uri="http://zespia.tw/hexo/">Hexo</generator>
+  
+  <entry>
+    <title><![CDATA[Spring自定义标签]]></title>
+    <link href="www.itcamel.com/2014/06/24/spring-custom-tag/"/>
+    <id>www.itcamel.com/2014/06/24/spring-custom-tag/</id>
+    <published>2014-06-24T12:28:04.000Z</published>
+    <updated>2014-06-26T15:00:38.000Z</updated>
+    <content type="html"><![CDATA[<h4 id="前言">前言</h4>
+<p>最近在看到一些开源框架的代码，诸如Spring、Dubbo、Webx3,在其中都有很多自定义的标签。这些标签见形知意，一下就显得高达上了。所以作为程序员，非常有必要掌握这个装X利器。介绍本文之前是基于大家了解XML的DTD和XSD的基础上。如果对这两块内容不熟悉的同学，请先行回炉下。<br>本文主要介绍如何基于Spring进行自定义标签的扩展，以及这块功能的实现原理。<br><a id="more"></a></p>
+<h5 id="Spring配置文件">Spring配置文件</h5>
+<p>spring 1.x的配置文件</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+</pre></td><td class="code"><pre>&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;!DOCTYPE beans PUBLIC "-//SPRING//DTD BEAN//EN"
+    "http://www.springframework.org/dtd/spring-beans.dtd"&gt;
+&lt;beans&gt;
+    &lt;bean id="transactionManager"
+        class="com.apress.prospring2.namespaces.NoopPlatformTransactionManager"/&gt;
+    &lt;bean id="greetingsList"
+        class="org.springframework.beans.factory.config.ListFactoryBean"&gt;
+        &lt;property name="sourceList"&gt;
+            &lt;list&gt;
+                &lt;value&gt;Hello, World&lt;/value&gt;
+                &lt;value&gt;What do you want to do tomorrow?&lt;/value&gt;
+                &lt;value&gt;Nazdar, prdi&lt;/value&gt;
+            &lt;/list&gt;
+        &lt;/property&gt;
+    &lt;/bean&gt;
+    &lt;bean id="greeterService"
+        class="org.springframework.transaction.interceptor.
+            TransactionProxyFactoryBean"&gt;
+        &lt;property name="transactionManager" ref="transactionManager"/&gt;
+        &lt;property name="target"&gt;
+            &lt;bean class="com.apress.prospring2.namespaces.ComplexGreeterService"&gt;
+                &lt;property name="greetings" ref="greetingsList"/&gt;
+            &lt;/bean&gt;
+        &lt;/property&gt;
+        &lt;property name="transactionAttributes"&gt;
+            &lt;props&gt;
+                &lt;prop key="greet*"&gt;PROPAGATION_REQUIRED&lt;/prop&gt;
+            &lt;/props&gt;
+        &lt;/property&gt;
+    &lt;/bean&gt;
+&lt;/beans&gt;
+</pre></td></tr></table></figure>
+
+<p>spring 2.x的配置文件</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+</pre></td><td class="code"><pre>&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;beans xmlns="http://www.springframework.org/schema/beans"
+    xmlns:xsi="http://www.w3.org/2001/XMLschema-instance" xmlns:util="http://www.springframework.org/schema/util"
+    xmlns:tx="http://www.springframework.org/schema/tx" xmlns:aop="http://www.springframework.org/schema/aop"
+    xsi:schemaLocation="http://www.springframework.org/schema/beans
+        http://www.springframework.org/schema/beans/spring-beans-2.5.xsd
+        http://www.springframework.org/schema/util
+        http://www.springframework.org/schema/util/spring-util-2.5.xsd
+        http://www.springframework.org/schema/tx
+        http://www.springframework.org/schema/tx/spring-tx-2.5.xsd
+        http://www.springframework.org/schema/aop
+        http://www.springframework.org/schema/aop/spring-aop-2.5.xsd"&gt;
+    &lt;bean id="transactionManager"
+        class="com.apress.prospring2.namespaces.NoopPlatformTransactionManager" /&gt;
+    &lt;util:list id="greetingsList"&gt;
+        &lt;value&gt;Hello, world&lt;/value&gt;
+        &lt;value&gt;What do you want to do tomorrow?&lt;/value&gt;
+        &lt;value&gt;Nazdar, prdi&lt;/value&gt;
+    &lt;/util:list&gt;
+    &lt;bean id="greeterService" class="com.apress.prospring2.namespaces.ComplexGreeterService"&gt;
+        &lt;property name="greetings" ref="greetingsList" /&gt;
+    &lt;/bean&gt;
+    &lt;tx:advice id="greeterServiceAdvice" transaction-manager="transactionManager"&gt;
+        &lt;tx:attributes&gt;
+            &lt;tx:method name="greet*" propagation="REQUIRED" /&gt;
+        &lt;/tx:attributes&gt;
+    &lt;/tx:advice&gt;
+    &lt;aop:config&gt;
+        &lt;aop:pointcut id="greeterServiceOperation"
+            expression="execution(* com.apress.*.*.GreeterService.*(..))" /&gt;
+        &lt;aop:advisor advice-ref="greeterServiceAdvice"
+            pointcut-ref="greeterServiceOperation" /&gt;
+    &lt;/aop:config&gt;
+&lt;/beans&gt;
+</pre></td></tr></table></figure>
+
+<p>两个配置文件达到的效果是一样的。但是2.x版本的更加简洁和清晰。但是为什么<util/>、<tx/>等标签，Spring框架能够很好的进行解析呢？ 这个归功于spring框架对schema的支持。</p>
+<h5 id="Schemas_Included_in_Spring_2-5">Schemas Included in Spring 2.5</h5>
+<table>
+<thead>
+<tr>
+<th>Schema</th>
+<th>Usage</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>util</td>
+<td>Utility functions for declaration of constants,lists,maps,properties,and property paths.</td>
+<td></td>
+</tr>
+<tr>
+<td>j2ee</td>
+<td>J2EE functions for working with the JNDI and EJBs.</td>
+<td></td>
+</tr>
+<tr>
+<td>jms</td>
+<td>Adds support for simple configuration of JMS beans.</td>
+<td></td>
+</tr>
+<tr>
+<td>lang</td>
+<td>Allows objects exposed by languages such as JRuby to be used as Spring beans.</td>
+<td></td>
+</tr>
+<tr>
+<td>tx</td>
+<td>Allows you to declare transactional properties of your Spring beans</td>
+<td></td>
+</tr>
+<tr>
+<td>aop</td>
+<td>Deals with aspect-oriended programming elements,such as pointcuts and advice</td>
+<td></td>
+</tr>
+<tr>
+<td>tool</td>
+<td>This schema is intended to be used by developers of additional components;the developers use the tool schema to add metadata that the third-party components use</td>
+<td></td>
+</tr>
+<tr>
+<td>context</td>
+<td>Allows you to control the wiring up process and bean post-processing</td>
+<td></td>
+</tr>
+<tr>
+<td>beans</td>
+<td>Use this schema to declare beans,aliases,and imports;this is usually the default schema in the XML file.</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p>以context为例</p>
+<figure class="highlight"><table><tr><td class="gutter"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+</pre></td><td class="code"><pre><span class="pi">&lt;?xml version="1.0" encoding="UTF-8"?&gt;</span>
+<span class="tag">&lt;<span class="title">beans</span> <span class="attribute">xmlns</span>=<span class="value">"http://www.springframework.org/schema/beans"</span>
+    <span class="attribute">xmlns:xsi</span>=<span class="value">"http://www.w3.org/2001/XMLSchema-instance"</span>
+    <span class="attribute">xmlns:context</span>=<span class="value">"http://www.springframework.org/schema/context"</span>
+    <span class="attribute">xsi:schemaLocation</span>=<span class="value">"http://www.springframework.org/schema/beans
+        http://www.springframework.org/schema/beans/spring-beans-2.5.xsd
+        http://www.springframework.org/schema/context
+        http://www.springframework.org/schema/context/spring-context-2.5.xsd"</span>&gt;</span>
+    <span class="tag">&lt;<span class="title">context:property-placeholder</span> <span class="attribute">location</span>=
+        "<span class="attribute">classpath:</span>/<span class="attribute">com</span>/<span class="attribute">apress</span>/<span class="attribute">prospring2</span>/<span class="attribute">ch07</span>/<span class="attribute">context</span>/<span class="attribute">test.properties</span>" /&gt;</span>
+<span class="tag">&lt;/<span class="title">beans</span>&gt;</span>
+</pre></td></tr></table></figure>
+
+<p>上面context是命名空间”<a href="http://www.springframework.org/schema/context&quot;的别名，带有这个别名的标签都是通过这个命名空间对应的DTD或者XSD定义结构体的。而在标签名称前缺少别名的默认用的是命名空间&quot;http://www.springframework.org/schema/beans&quot;。" target="_blank">http://www.springframework.org/schema/context&quot;的别名，带有这个别名的标签都是通过这个命名空间对应的DTD或者XSD定义结构体的。而在标签名称前缺少别名的默认用的是命名空间&quot;http://www.springframework.org/schema/beans&quot;。</a></p>
+<h6 id="Spring对命名空间内元素的解析">Spring对命名空间内元素的解析</h6>
+<p>在Spring包的META-INF目录下有两个文件：spring.handlers和spring.schemas<br>spring.handlers</p>
+<figure class="highlight"><table><tr><td class="gutter"><pre>1
+2
+3
+4
+5
+6
+7
+8
+</pre></td><td class="code"><pre>http\://www<span class="preprocessor">.springframework</span><span class="preprocessor">.org</span>/schema/aop=org<span class="preprocessor">.springframework</span><span class="preprocessor">.aop</span><span class="preprocessor">.config</span><span class="preprocessor">.AopNamespaceHandler</span>
+http\://www<span class="preprocessor">.springframework</span><span class="preprocessor">.org</span>/schema/context=org<span class="preprocessor">.springframework</span><span class="preprocessor">.context</span><span class="preprocessor">.config</span><span class="preprocessor">.ContextNamespaceHandler</span>
+http\://www<span class="preprocessor">.springframework</span><span class="preprocessor">.org</span>/schema/jee=org<span class="preprocessor">.springframework</span><span class="preprocessor">.ejb</span><span class="preprocessor">.config</span><span class="preprocessor">.JeeNamespaceHandler</span>
+http\://www<span class="preprocessor">.springframework</span><span class="preprocessor">.org</span>/schema/jms=org<span class="preprocessor">.springframework</span><span class="preprocessor">.jms</span><span class="preprocessor">.config</span><span class="preprocessor">.JmsNamespaceHandler</span>
+http\://www<span class="preprocessor">.springframework</span><span class="preprocessor">.org</span>/schema/lang=org<span class="preprocessor">.springframework</span><span class="preprocessor">.scripting</span><span class="preprocessor">.config</span><span class="preprocessor">.LangNamespaceHandler</span>
+http\://www<span class="preprocessor">.springframework</span><span class="preprocessor">.org</span>/schema/p=org<span class="preprocessor">.springframework</span><span class="preprocessor">.beans</span><span class="preprocessor">.factory</span><span class="preprocessor">.xml</span><span class="preprocessor">.SimplePropertyNamespaceHandler</span>
+http\://www<span class="preprocessor">.springframework</span><span class="preprocessor">.org</span>/schema/tx=org<span class="preprocessor">.springframework</span><span class="preprocessor">.transaction</span><span class="preprocessor">.config</span><span class="preprocessor">.TxNamespaceHandler</span>
+http\://www<span class="preprocessor">.springframework</span><span class="preprocessor">.org</span>/schema/util=org<span class="preprocessor">.springframework</span><span class="preprocessor">.beans</span><span class="preprocessor">.factory</span><span class="preprocessor">.xml</span><span class="preprocessor">.UtilNamespaceHandler</span>
+</pre></td></tr></table></figure>
+
+<p>未完待续</p>
+]]></content>
+    <summary type="html"><![CDATA[<h4 id="前言">前言</h4>
+<p>最近在看到一些开源框架的代码，诸如Spring、Dubbo、Webx3,在其中都有很多自定义的标签。这些标签见形知意，一下就显得高达上了。所以作为程序员，非常有必要掌握这个装X利器。介绍本文之前是基于大家了解XML的DTD和XSD的基础上。如果对这两块内容不熟悉的同学，请先行回炉下。<br>本文主要介绍如何基于Spring进行自定义标签的扩展，以及这块功能的实现原理。<br>]]></summary>
+    
+      <category term="spring" scheme="www.itcamel.com/tags/spring/"/>
+    
+      <category term="开源框架" scheme="www.itcamel.com/categories/%E5%BC%80%E6%BA%90%E6%A1%86%E6%9E%B6/"/>
+    
+  </entry>
+  
+  <entry>
+    <title><![CDATA[jar依赖冲突解决实践]]></title>
+    <link href="www.itcamel.com/2014/06/23/dependency-conflict/"/>
+    <id>www.itcamel.com/2014/06/23/dependency-conflict/</id>
+    <published>2014-06-23T01:18:36.000Z</published>
+    <updated>2014-06-26T14:55:51.000Z</updated>
+    <content type="html"><![CDATA[<h2 id="前言">前言</h2>
+<p>随着功能的增多，各种中间件的引入。应用以来的各种jar的规模极具膨胀，出现jar冲突和Class冲突的问题层出不穷，让人不胜其扰。本文针对冲突，提供一个排查和定位问题的最佳实践。实践中尽量不借助第三方工具，而使用maven或者Linux的自带命令行。</p>
+<h2 id="Maven构建的应用的jar冲突">Maven构建的应用的jar冲突</h2>
+<p>目前最为最流行的项目构建和管理工具，在目前的互联网应用中被广泛使用。maven框架很大的一个便利就是对于jar的依赖管理，它自然提供了一些工具帮助开发者进行依赖分析。maven存在坐标的概念。groupId，artifactId，version三个维度定位到一个唯一的jar。</p>
+<figure class="highlight"><table><tr><td class="gutter"><pre>1
+2
+3
+4
+5
+6
+7
+</pre></td><td class="code"><pre><span class="tag">&lt;<span class="title">dependency</span>&gt;</span>
+        <span class="tag">&lt;<span class="title">groupId</span>&gt;</span>com.taobao.diamond<span class="tag">&lt;/<span class="title">groupId</span>&gt;</span>
+        <span class="tag">&lt;<span class="title">artifactId</span>&gt;</span>diamond-client<span class="tag">&lt;/<span class="title">artifactId</span>&gt;</span>
+        <span class="tag">&lt;<span class="title">version</span>&gt;</span>3.6.0<span class="tag">&lt;/<span class="title">version</span>&gt;</span> 
+        <span class="tag">&lt;<span class="title">type</span>&gt;</span>jar<span class="tag">&lt;/<span class="title">type</span>&gt;</span>
+        <span class="tag">&lt;<span class="title">scope</span>&gt;</span>compile<span class="tag">&lt;/<span class="title">scope</span>&gt;</span> 
+<span class="tag">&lt;/<span class="title">dependency</span>&gt;</span>
+</pre></td></tr></table></figure>
+
+<p>对于版本，有一个很宽泛的范围</p>
+<p><version>[3.6.0,4.0.0)</version> 要求的依赖版本&gt;=3.6.0且&lt;4.0.0</p>
+<p><version>[,3.6.0]</version> 要求的依赖版本&lt;=3.6.0<br>对于应用来讲，还是固定一个版本为好，夸版本有太多不可预知的情况存在。</p>
+<a id="more"></a>
+
+<h3 id="静态代码检查">静态代码检查</h3>
+<p>通过mvn dependency:tree 命令查看依赖树</p>
+<figure class="highlight"><table><tr><td class="gutter"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+</pre></td><td class="code"><pre>[INFO] \- <span class="keyword">com</span><span class="preprocessor">.alibaba</span><span class="preprocessor">.china</span><span class="preprocessor">.shared</span>:credit_shared<span class="preprocessor">.ruleengine</span><span class="preprocessor">.biz</span>:jar:<span class="number">1.0</span>-SNAPSHOT:compile
+[INFO]    +- <span class="keyword">com</span><span class="preprocessor">.alibaba</span><span class="preprocessor">.china</span><span class="preprocessor">.shared</span>:credit_shared<span class="preprocessor">.ruleengine</span><span class="preprocessor">.api</span>:jar:<span class="number">1.0</span>-SNAPSHOT:compile
+[INFO]    +- <span class="keyword">com</span><span class="preprocessor">.alibaba</span><span class="preprocessor">.china</span><span class="preprocessor">.shared</span>:credit_shared<span class="preprocessor">.ruleengine</span><span class="preprocessor">.dal</span>:jar:<span class="number">1.0</span>-SNAPSHOT:compile
+[INFO]    +- org<span class="preprocessor">.antlr</span>:antlr:jar:<span class="number">3.3</span>:compile
+[INFO]    +- org<span class="preprocessor">.antlr</span>:antlr-runtime:jar:<span class="number">3.3</span>:compile
+[INFO]    |  \- org<span class="preprocessor">.antlr</span>:stringtemplate:jar:<span class="number">3.2</span><span class="number">.1</span>:compile
+[INFO]    +- org<span class="preprocessor">.mvel</span>:mvel2:jar:<span class="number">2.1</span><span class="number">.3</span><span class="preprocessor">.Final</span>:compile
+[INFO]    +- org<span class="preprocessor">.drools</span>:knowledge-api:jar:<span class="number">5.5</span><span class="number">.0</span><span class="preprocessor">.Final</span>:compile
+[INFO]    +- org<span class="preprocessor">.drools</span>:drools-core:jar:<span class="number">5.5</span><span class="number">.0</span><span class="preprocessor">.Final</span>:compile
+[INFO]    |  \- org<span class="preprocessor">.drools</span>:knowledge-internal-api:jar:<span class="number">5.5</span><span class="number">.0</span><span class="preprocessor">.Final</span>:compile
+[INFO]    \- org<span class="preprocessor">.drools</span>:drools-compiler:jar:<span class="number">5.5</span><span class="number">.0</span><span class="preprocessor">.Final</span>:compile
+[INFO]       +- org<span class="preprocessor">.antlr</span>:antlr:jar:<span class="number">2.7</span><span class="number">.7</span>:compile
+[INFO]       +- org<span class="preprocessor">.eclipse</span><span class="preprocessor">.jdt</span><span class="preprocessor">.core</span><span class="preprocessor">.compiler</span>:ecj:jar:<span class="number">3.5</span><span class="number">.1</span>:compile
+[INFO]       \- <span class="keyword">com</span><span class="preprocessor">.thoughtworks</span><span class="preprocessor">.xstream</span>:xstream:jar:<span class="number">1.4</span><span class="number">.1</span>:compile
+[INFO]          +- xmlpull:xmlpull:jar:<span class="number">1.1</span><span class="number">.3</span><span class="number">.1</span>:compile
+[INFO]          \- xpp3:xpp3_min:jar:<span class="number">1.1</span><span class="number">.4</span>c:compile
+</pre></td></tr></table></figure>
+
+<p>通过静态代码扫描的方式，能分析出来jar之间的依赖关系。举例credit_shared.ruleengine.biz-1.0-SNAPSHOT.jar依赖了antlr-3.3.jar。org.antlr:antlr-3.3.jar在maven中的坐标是</p>
+<figure class="highlight"><table><tr><td class="gutter"><pre>1
+2
+3
+4
+5
+6
+7
+</pre></td><td class="code"><pre><span class="tag">&lt;<span class="title">dependency</span>&gt;</span>
+        <span class="tag">&lt;<span class="title">groupId</span>&gt;</span>org.antlr<span class="tag">&lt;/<span class="title">groupId</span>&gt;</span>
+        <span class="tag">&lt;<span class="title">artifactId</span>&gt;</span>antlr<span class="tag">&lt;/<span class="title">artifactId</span>&gt;</span>
+        <span class="tag">&lt;<span class="title">version</span>&gt;</span>3.3<span class="tag">&lt;/<span class="title">version</span>&gt;</span>
+        <span class="tag">&lt;<span class="title">type</span>&gt;</span>jar<span class="tag">&lt;/<span class="title">type</span>&gt;</span>
+        <span class="tag">&lt;<span class="title">scope</span>&gt;</span>compile<span class="tag">&lt;/<span class="title">scope</span>&gt;</span>  
+<span class="tag">&lt;/<span class="title">dependency</span>&gt;</span>
+</pre></td></tr></table></figure>
+
+<h4 id="依赖仲裁">依赖仲裁</h4>
+<p>从上面的依赖树，出现了另外一个版本的jar——org.antlr:antlr:jar:2.7.7:compile，这就出现了依赖仲裁的问题。<br>maven 2.2.1版本仲裁规则：</p>
+<ol>
+<li>按照项目总POM的DependencyManager版本声明进行仲裁(覆盖),但无警告</li>
+<li>如无仲裁声明,则按照依赖最短路径确定版本</li>
+<li>若相同路径,有严格区间限定的版本优先</li>
+<li>若相同路径,无版本区间,则按照先入为主原则</li>
+</ol>
+<p>如要解决冲突问题，很多时候都用到exclusions,如A-&gt;B-&gt;D（v1）,A-&gt;C-D（v2）,要指定A-&gt;D(v1),则需要在声明C的依赖时候通过exclusions列表排除掉对D(v2)的依赖。</p>
+<p>要更好理解依赖仲裁，需要了解以下附带知识。</p>
+<h4 id="maven_classpath">maven classpath</h4>
+<p>maven中有三种classpath：</p>
+<ol>
+<li>编译classpath：编译项目代码，依赖的jar会被引入到classpath</li>
+<li>测试classpath：编译和执行测试部分代码，如单元测试，集成测试，依赖会被引入到classpath</li>
+<li>运行classpath：实际运行代码的时候，依赖的jar会被引入到classpath</li>
+</ol>
+<h4 id="scope:依赖范围">scope:依赖范围</h4>
+<p>scope就是为了解决jar在classpath中的可见性。scope有以下几个可选项<br>compile：默认值，对编译classpath、测试classpath、运行classpath都有效，在三个阶段都需要指定的jar<br>provided：编译和测试可用，不会被传递依赖，不会被打包。例：依赖于web容器中的提供的一个jar包，在编译的时候需要加入依赖（web容器还没有介入），运行的时候由web容器来提供。如servlet-api。<br>test：执行单元测试时可用，不会被打包，不会被传递依赖<br>runtime：运行和测试时需要，但编译时不需要。最典型的例子是JDBC的驱动，编译时只需要提供驱动的API即可，在运行和测试阶段，需要加载到具体的驱动实现。<br>system：跟provided一致，显示制定依赖路径，一般是指定了本地的仓库之外的类库文件。可能造成不可依赖性，不推荐使用。</p>
+<h4 id="传递性依赖">传递性依赖</h4>
+<p>A-&gt;B,B-&gt;C,则A-&gt;C。这是传递性依赖。依赖是有范围的，A-&gt;B,B-&gt;C的依赖范围决定了A-&gt;C的依赖范围。</p>
+<table>
+<thead>
+<tr>
+<th>A-&gt;C</th>
+<th><em>compile</em></th>
+<th><em>provided</em></th>
+<th><em>test</em></th>
+<th><em>runtime</em></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><em>compile</em></td>
+<td>compile</td>
+<td></td>
+<td></td>
+<td>runtime</td>
+<td></td>
+</tr>
+<tr>
+<td><em>provided</em></td>
+<td>provided</td>
+<td>provided</td>
+<td></td>
+<td>provided</td>
+<td></td>
+</tr>
+<tr>
+<td><em>test</em></td>
+<td>test</td>
+<td></td>
+<td></td>
+<td>test</td>
+<td></td>
+</tr>
+<tr>
+<td><em>runtime</em></td>
+<td>runtime</td>
+<td></td>
+<td></td>
+<td>runtime</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h5 id="可选依赖">可选依赖</h5>
+<figure class="highlight"><table><tr><td class="gutter"><pre>1
+2
+3
+4
+5
+6
+7
+8
+</pre></td><td class="code"><pre>    <span class="tag">&lt;<span class="title">dependency</span>&gt;</span>
+	<span class="tag">&lt;<span class="title">groupId</span>&gt;</span>org.antlr<span class="tag">&lt;/<span class="title">groupId</span>&gt;</span>
+	<span class="tag">&lt;<span class="title">artifactId</span>&gt;</span>antlr<span class="tag">&lt;/<span class="title">artifactId</span>&gt;</span>
+	<span class="tag">&lt;<span class="title">version</span>&gt;</span>3.3<span class="tag">&lt;/<span class="title">version</span>&gt;</span>
+	<span class="tag">&lt;<span class="title">type</span>&gt;</span>jar<span class="tag">&lt;/<span class="title">type</span>&gt;</span>
+	<span class="tag">&lt;<span class="title">scope</span>&gt;</span>compile<span class="tag">&lt;/<span class="title">scope</span>&gt;</span>  
+	<span class="tag">&lt;<span class="title">optional</span>&gt;</span>true<span class="tag">&lt;/<span class="title">optional</span>&gt;</span>
+    <span class="tag">&lt;/<span class="title">dependency</span>&gt;</span>
+</pre></td></tr></table></figure>
+
+<p>A-&gt;B,B-&gt;C(可选),B-&gt;D(可选)，则A不会通过传递依赖到C或者D。</p>
+<h4 id="非Maven项目或者不同坐标的jar出现Class冲突,">非Maven项目或者不同坐标的jar出现Class冲突,</h4>
+<p>上面介绍的是jar相同而版本不同，如antlr-3.3.jar,antlr-3.2.jar类似情况的冲突解决方案。这种情况一般出现在中间件升级。下面介绍坐标不同，如antlr-old-3.3.jar、antlr-new.jar,而jar中包含了类路径完全相同的类的情况。<br>出现这种情况，一般的异常提示都是“XXX类has no such method XXXX”之类的。这些异常提示基本可以定位成Class不是你要的Class，只不过Class的全路径是相同的，最大的可能也就是ClassLoader加载了另外一个jar的同名类。所以，首先要排查到该类是从哪个具体jar中来的。JVM提供了这样的功能，查看加载类的情况</p>
+<figure class="highlight"><table><tr><td class="gutter"><pre>1
+</pre></td><td class="code"><pre>java -<span class="symbol">verbose:</span><span class="class"><span class="keyword">class</span></span>
+</pre></td></tr></table></figure>
+
+<p>类加载情况，如SubscriptionInfo类加载自file:/home/zhao/web-deploy/jetty<em>server/tmp/jetty-0.0.0.0-34200-root.war-</em>-any-/webinf/WEB-INF/lib/pc2.common-1.2.5.jar</p>
+<figure class="highlight"><table><tr><td class="gutter"><pre>1
+2
+</pre></td><td class="code"><pre>[Loaded <span class="keyword">com</span><span class="preprocessor">.alibaba</span><span class="preprocessor">.pc</span>2<span class="preprocessor">.common</span><span class="preprocessor">.remote</span><span class="preprocessor">.subscription</span><span class="preprocessor">.SubscriptionInfo</span> from file:/home/zhao/web-deploy/jetty_server/tmp/jetty-<span class="number">0.0</span><span class="number">.0</span><span class="number">.0</span>-<span class="number">34200</span>-root<span class="preprocessor">.war</span>-_-any-/webinf/WEB-INF/lib/pc2<span class="preprocessor">.common</span>-<span class="number">1.2</span><span class="number">.5</span><span class="preprocessor">.jar</span>]
+[Loaded <span class="keyword">com</span><span class="preprocessor">.alibaba</span><span class="preprocessor">.pc</span>2<span class="preprocessor">.common</span><span class="preprocessor">.domain</span><span class="preprocessor">.productpackage</span><span class="preprocessor">.PackageInfo</span> from file:/home/zhao/web-deploy/jetty_server/tmp/jetty-<span class="number">0.0</span><span class="number">.0</span><span class="number">.0</span>-<span class="number">34200</span>-root<span class="preprocessor">.war</span>-_-any-/webinf/WEB-INF/lib/pc2<span class="preprocessor">.common</span>-<span class="number">1.2</span><span class="number">.5</span><span class="preprocessor">.jar</span>]
+</pre></td></tr></table></figure>
+
+<p>而同样在pmap pid可以进程的内存镜像。 jps -v查看pid，再通过pmap pid &gt; map.txt,从map.txt中查到</p>
+<figure class="highlight"><table><tr><td class="gutter"><pre>1
+</pre></td><td class="code"><pre><span class="number">00007</span>fa4ae174000     <span class="number">20</span>K r<span class="attribute">-xs</span><span class="subst">-</span>  /home/zhao/web<span class="attribute">-deploy</span>/jetty_server/tmp/jetty<span class="subst">-</span><span class="number">0.0</span><span class="number">.0</span><span class="number">.0</span><span class="subst">-</span><span class="number">34200</span><span class="attribute">-root</span><span class="built_in">.</span>war<span class="attribute">-_</span><span class="attribute">-any</span><span class="subst">-</span>/webinf/WEB<span class="attribute">-INF</span>/lib/pc2<span class="built_in">.</span>common<span class="subst">-</span><span class="number">1.2</span><span class="number">.5</span><span class="built_in">.</span>jar
+</pre></td></tr></table></figure>
+
+<p>得到确认后，如果是maven工程，则通过依赖树查询到是具体哪个jar依赖了这个错误引用，在pom文件中exclusions掉该jar即可。<br>如果是非maven工程，则通过其他方式把错误引用排除掉即可。</p>
+]]></content>
+    <summary type="html"><![CDATA[<h2 id="前言">前言</h2>
+<p>随着功能的增多，各种中间件的引入。应用以来的各种jar的规模极具膨胀，出现jar冲突和Class冲突的问题层出不穷，让人不胜其扰。本文针对冲突，提供一个排查和定位问题的最佳实践。实践中尽量不借助第三方工具，而使用maven或者Linux的自带命令行。</p>
+<h2 id="Maven构建的应用的jar冲突">Maven构建的应用的jar冲突</h2>
+<p>目前最为最流行的项目构建和管理工具，在目前的互联网应用中被广泛使用。maven框架很大的一个便利就是对于jar的依赖管理，它自然提供了一些工具帮助开发者进行依赖分析。maven存在坐标的概念。groupId，artifactId，version三个维度定位到一个唯一的jar。</p>
+<figure class="highlight"><table><tr><td class="gutter"><pre>1
+2
+3
+4
+5
+6
+7
+</pre></td><td class="code"><pre><span class="tag">&lt;<span class="title">dependency</span>&gt;</span>
+        <span class="tag">&lt;<span class="title">groupId</span>&gt;</span>com.taobao.diamond<span class="tag">&lt;/<span class="title">groupId</span>&gt;</span>
+        <span class="tag">&lt;<span class="title">artifactId</span>&gt;</span>diamond-client<span class="tag">&lt;/<span class="title">artifactId</span>&gt;</span>
+        <span class="tag">&lt;<span class="title">version</span>&gt;</span>3.6.0<span class="tag">&lt;/<span class="title">version</span>&gt;</span> 
+        <span class="tag">&lt;<span class="title">type</span>&gt;</span>jar<span class="tag">&lt;/<span class="title">type</span>&gt;</span>
+        <span class="tag">&lt;<span class="title">scope</span>&gt;</span>compile<span class="tag">&lt;/<span class="title">scope</span>&gt;</span> 
+<span class="tag">&lt;/<span class="title">dependency</span>&gt;</span>
+</pre></td></tr></table></figure>
+
+<p>对于版本，有一个很宽泛的范围</p>
+<p><version>[3.6.0,4.0.0)</version> 要求的依赖版本&gt;=3.6.0且&lt;4.0.0</p>
+<p><version>[,3.6.0]</version> 要求的依赖版本&lt;=3.6.0<br>对于应用来讲，还是固定一个版本为好，夸版本有太多不可预知的情况存在。</p>
+]]></summary>
+    
+      <category term="maven" scheme="www.itcamel.com/tags/maven/"/>
+    
+      <category term="dependency" scheme="www.itcamel.com/tags/dependency/"/>
+    
+      <category term="系统运维" scheme="www.itcamel.com/categories/%E7%B3%BB%E7%BB%9F%E8%BF%90%E7%BB%B4/"/>
+    
+  </entry>
+  
+  <entry>
+    <title><![CDATA[北京Qcon走马观花]]></title>
+    <link href="www.itcamel.com/2014/04/25/qcon-1st/"/>
+    <id>www.itcamel.com/2014/04/25/qcon-1st/</id>
+    <published>2014-04-25T09:18:34.000Z</published>
+    <updated>2014-06-16T14:26:52.000Z</updated>
+    <content type="html"><![CDATA[<h2 id="前言">前言</h2>
+<p>也不知道怎么写这个分享，就记个流水帐吧！<br>从未去过帝都，不过想来那地方是甚好的。这次能有机会去见识下，新鲜劲还是有一些的。这个要感谢下公司提供的这次宝贵机会。qcon大会我是第二次参加，第一次是12年的杭州qcon大会，协办方就是我们公司。那次大会的作用就是很大程度上去见见大观园，这个不是讲虚的，确实有疗效。这次给自己的目标有两个：第一个自己了解的领域多看看其他公司是怎么做的，跟阿里的有何不同;第二个自己不熟悉但关注的领域扫扫盲，比如云计算、大数据。所以去之前，仔细看了会议的安排和每个主题演讲的内容，选定了自己去参加的topic。带着这两个心里预期，还有HR的秘密使命，我们就奔着北京qcon去了。<br>下了飞机，在首都机场打了的士，直奔在四环的酒店。随行的博林同学做了下打车软件调查，结果这位师傅什么打车软件没使用。看来快的和嘀嘀的运营还做的不够啊。从首都机场出发3点多，从五环一路狂堵车到酒店5点多，帝都的路况还真是名副其实的糟糕。<br>PS：去的时候有点小失望，国航的飞机上都没怎么见到空姐。</p>
+<hr>
+<h2 id="qcon_1st_Day">qcon 1st Day</h2>
+<p>第一天6点半到会场签到，收获了池建强的一句话很NB的语录：“做技术的人，一定要多写文章。技术的，人文的，最好都写一点。慢慢的，科技在哪里，你就在那里了。但是最高的境界是你在哪里，科技和人文就在哪里”。会场的展台区是各个IT公司的工作人员，每个展台前都是有节操、无下限的美女，让我们这群屌丝任意消费。展会中包括IBM、腾讯、高德、七牛等大小公司都在宣传各自的“云”。展台宣传的东西除了“云”之外，另外就只有“安全”和“可穿戴设备”。这也很能说明当前业界的热点在哪里了。</p>
+<h3 id="早上的3个非主题演讲">早上的3个非主题演讲</h3>
+<p>国外公司的广告时间</p>
+<ol>
+<li>分别由AWS介绍了自己公司的nosql产品DynamoDB。（去参加qcon之前找的资料：<a href="http://aws.amazon.com/cn/dynamodb/" target="_blank">DynamonDB详细介绍</a>、<a href="http://www.programmer.com.cn/11081/" target="_blank">MongoDB的比较</a>)。</li>
+<li>大型前端应用的组件与模块。由英国金融时报实验室的一个前端哥们讲解他们的前端组件化。有个哥们整理的不错，直接粘上，因为我铁定没他整理的好（<a href="http://www.infoq.com/cn/news/2014/04/front-end-modular）。" target="_blank">http://www.infoq.com/cn/news/2014/04/front-end-modular）。</a></li>
+<li>请了一个生物学的科学家，研究生物神经的，跨界演讲，讲怎么利用大数据对鱼的神经活动进行研究，主要讲怎么研究鱼。其中利用了spark来对大数据进行计算和分析。That‘s all。整个topic听下来，对开发人员有用的就是一个词“spark”。</li>
+</ol>
+<h3 id="一、主题演讲">一、主题演讲</h3>
+<h4 id="Localization_of_Stack_Overflow_-StackOverFlow_Marco_Cecconi">Localization of Stack Overflow -StackOverFlow Marco Cecconi</h4>
+<p>stack overflow是一个大家都很熟悉的站点，大家很多的问题都在上面可以查阅到。Marco Cecconi是stack overflow的核心开发者之一，下面关于stack overflow网站架构也是由他来讲的。topic讲了讲了在8周内本地化Stack Overflow。有个观点让人印象深刻：同一个语言能够更加深入的交流，这个也是要做本地化的初衷。Marco讲到一个事情，中国的开发者在stack overflow上查阅问题的很多，但是来解答问题和交流的很少。why？Marco归咎为语言问题。对于怎么实现本地化，他讲的比较简单，我看了ppt也未看出所以然，自觉锉顿了。<br>ps：<a href="http://lanyrd.com/slides/" target="_blank">Marco blog</a><br><a href="https://speakerdeck.com/sklivvz/the-localization-of-stack-overflow-qcon-china-2014" target="_blank">PPT</a></p>
+<h4 id="OpenStack云服务平台设计与挑战_-UnitedStack_程辉">OpenStack云服务平台设计与挑战 -UnitedStack 程辉</h4>
+<p>OpenStack的开源生态在处在蓬勃房展阶段，已经有越来越多的互联网公司围绕着OpenStack建设自己的云。UnitedStack就是其中的一家。程辉作为原来新浪的员工，在新浪从事的就是Openstack相关的工作，他也是国内OpenStack的积极推广者。离职创业后，围绕OpenStack构建云服务，也成了他创业公司的基础。本次程辉也是作为qcon云主题的出品人参与的，所以他在业内也应该是相当有影响力的。Topic里面主要介绍了OpenStack的发展现状，以及产品的前景。UnitedStack围绕OpenStack构建云上已经作的工作和努力。去听这个演讲，纯属去扫盲的。不过还好，基本都听明白，再去翻了下ppt，确实扩展了一些云方面的知识。<br><a href="http://yunpan.taobao.com/share/link/A3Dty0s29" target="_blank">PPT</a></p>
+<h4 id="聚石塔：电子商务云平台_2013年双11历程_-阿里巴巴_陈皓">聚石塔：电子商务云平台 2013年双11历程 -阿里巴巴 陈皓</h4>
+<p>著名CoolShell博主耗子，目前就职于阿里云。他在本次Topic中有一个很鲜明的观点：云平台提供的不仅是资源,更是服务和解决方案。中间他也将了聚石塔是如何做平台。</p>
+<ol>
+<li>还债<br>出来混,迟早是要还的。以前欠下的债,时间越晚,偿还的利息就越多。所以,聚石塔欠下的技术债必需还。</li>
+<li>标准<br>无标准,不平台。何况是一个云平台。所以,需要建立聚石塔云平台的各种标准。</li>
+<li>管理<br>对于一个云平台来说,最重要的事情就是能把这么复杂的集群管理起来。而对于一个垂直云来说,还需要管理上面的应用业务。</li>
+<li>安全<br>聚石塔里有很多用户的数据,数据外泄一直是威胁聚石塔生存的恶魔,解决好数据安全是聚石塔头等大事。</li>
+<li>成长<br>我们必需通过种种手段,让聚石塔上的应用能跟淘宝天猫的系统的发展节奏一同成长。</li>
+</ol>
+<p>陈皓在topic里面还提到了另外一个观点：云计算就是拼运维。大家在info上也可以看看。<a href="http://www.infoq.com/cn/articles/chenhao-on-cloud?utm_source=infoq&amp;utm_medium=popular_links_homepage" target="_blank">左耳朵耗子谈云计算：拼的就是运维</a><br>当然，耗子对阿里也有诸多吐槽，此处省去800字。但是他也讲到阿里这边让他印象最深刻的是：在其他公司包括Amazon，从未见过如此热情开发工程师，效率高，Amazon干1年的活，在这里可能就干一个星期。<br>PS：这个topic人气爆棚，连地上一个屁股都放不下了，可见CoolShell的人气不是盖的。我也是陈皓的粉丝，毫不夸张的说，我们很多人都是看着CoolShell进入互联网领域的。池建强也说过这句话，可见陈皓江湖地位之尊崇。<br><a href="http://yunpan.taobao.com/share/link/23Dty0sMX" target="_blank">PPT</a></p>
+<a id="more"></a>
+
+<h4 id="京东大规模内存存储平台_-京东_刘海锋">京东大规模内存存储平台 -京东 刘海锋</h4>
+<p>讲解了京东自主研发的基于Redis的内存系统。演进历史：分散无章的集群和Redis实例;集中服务化治理;自动的故障检测与切换，定制存储引擎，平滑扩容。讲解的还是不错的，其中详细讲解了他们是做纵向和横向扩容的方案。京东的内存存储平台的发展证明了一件事：各个IT互联网公司的技术发展历史总是惊人的相似。像阿里对小文件存储有了TFS，JD就有了JFS。阿里自研Tair，JD就发展了JStore。后面还有搜狗的Java生态演化之路，其中包括服务化思路，对照阿里，也基本上类似，只不过各有JD、搜狗特色。<br><a href="http://yunpan.taobao.com/share/link/33Dty0sD0" target="_blank">PPT</a></p>
+<hr>
+<h2 id="qcon_2st_Day">qcon 2st Day</h2>
+<h3 id="一、主题演讲-1">一、主题演讲</h3>
+<h4 id="大数据环境下社交图谱和兴趣图谱的结合_豆瓣_王守崑">大数据环境下社交图谱和兴趣图谱的结合 豆瓣 王守崑</h4>
+<ul>
+<li>介绍了目前个性化推荐面临的一些困境</li>
+<li>怎么结合社交图谱和兴趣图谱做个性化推荐<br>首席科学家讲的大体是个思路，“搜索、计算广告、个性化推荐趋于融合”这个观点很深刻。<br><a href="http://www.techweb.com.cn/news/2013-11-14/1357347.shtml" target="_blank">豆瓣王守崑：大数据时代社交图谱与兴趣图谱的融合</a><br><a href="http://www.infoq.com/cn/news/2014/03/qconbeijing2014-wangshoukun" target="_blank">王守崑：搜索、计算广告、个性化推荐趋于融合</a></li>
+</ul>
+<h4 id="微薄平台架构练级之高性能和高可用_新浪_姚四芳">微薄平台架构练级之高性能和高可用 新浪 姚四芳</h4>
+<p>这个分享还是挺有料的，主要讲了新浪微博是如何通过架构演进，做到在春晚大考的时候，喝着咖啡,看着春晚,盯着dashboard的。<br>其实这个更侧重于运维的内容,重点讲了容量规划和流控。</p>
+<ul>
+<li>容量规划与流量控制    </li>
+<li>系统架构容错</li>
+<li>问题快速定位与响应</li>
+</ul>
+<p>在做容量预估中，新浪做了线上压力模拟测试。他们用了Tcpcopy的方案，直接把线上真实的流量引到了线下。这个方案原先我跟PE一起针对我们认证的系统AuthCenter进行过容量压测，没想他们针对微博也敢这么干了。看来他们为了压测，真的下了血本了，有多少配套的环境需要准备啊！<br>里面有个新鲜的地方——消息蓄水池：让消息堆积，瞬间泄洪，拿到峰值数据，这个在阿里目前好像没听说过这种玩法。<br>微博这玩意一旦热点事件爆发，PV就来了。不像双11,是有备而战。因为谁也不知道明天是不是有热点事件。10w/s的写入压力，对于系统要求还真很高，所以他们考虑了快速扩容的方案和系统容错。<br><a href="http://yunpan.taobao.com/share/link/B3Dty0s28" target="_blank">PPT</a></p>
+<h4 id="Akka分布式集群的实现_豌豆荚_邓草原">Akka分布式集群的实现 豌豆荚 邓草原</h4>
+<p>首先，邓大侠一上台，那种10几年IT从业经验所积淀的气场就让人老远就闻到味了。邓大侠的分享内容也真是货真价实的，干的不行，直接代码切入，大部分篇幅还都是代码。这个分享细节比较多，我还在拜读当中。<br>scala一直红火的不行，连Java8的很多特性都向Scala靠拢了。而Akka作为Scala语言的并发库，这威力自然无边了，在并行计算、实时流式计算方面有较多实践，如storm, spark, Cassandra。而基于Actor的编程模型确实能规避java基于内存共享并发编程的一些弊端。topic一半篇幅介绍Akka特性，一半篇幅介绍怎么用Akka实现分片集群，以豌豆荚spray-socktio的设计作为例子进行说明。这个项目代码是开源的：<a href="https://github.com/wandoulabs/spray-socketio" target="_blank">spray-socketio</a><br>另外，老邓的一个观点也是我比较赞同的：只有不断地去接触新语言，了解新语言的新特性，并善加利用，才能在架构上有新路。<br><a href="http://yunpan.taobao.com/share/link/53Dtr0Y26" target="_blank">PPT</a></p>
+<h4 id="百度LBS的大数据实践_百度_张绍文">百度LBS的大数据实践 百度 张绍文</h4>
+<p>这个演讲有点偏向于产品。讲了一些百度在LBS方面的工作，特别是“百度迁移”这款产品，是怎么利用大数据，展现春节和东莞等热点事件期间，人口的迁移情况。后面也讲到怎么利用大数据和众包的模式，去标注和修正地图位置，已经通过车辆的行驶数据去更新车况道路信息。都是一些基于LBS的数据运用，想法上比较新颖。</p>
+<h4 id="京东JOS进化论——性能、可用性演进_京东_杜宇甫">京东JOS进化论——性能、可用性演进 京东 杜宇甫</h4>
+<p>演讲的内容主要讲JD的开放平台，跟阿里的Ocean干的事情差不太多。当然个人臆测Ocean平台更强大和完备。<br>JD的开发平台上有2点有新意：</p>
+<ol>
+<li>引入servlet 3.0<br>通过Servlet3.0的异步处理的特性来提升web容器的吞吐量。当前的容器线程开启异步处理后，当前处理请求的线程就可以不生成HTTP响应而直接退出去处理其它的HTTP请求，之后通过异步处理上下文来生成和发送原请求的HTTP响应。</li>
+<li>线程池调度设定优先级<br>把线程池划分成public和private。每个请求服务可以设定各自的private线程资源，以保证高优先级请求的资源供给，一种比较特别的方式来处理流控管理。<br><em>又想说那句话：历史总是惊人的相似。随着业务的发展，系统的演进，JD也在重复走着阿里曾经走过的路。一路风景一路行，路相同，走路的人遇到的风景不同而已。</em><br><a href="http://yunpan.taobao.com/share/link/I3Dty0sBn" target="_blank">PPT</a></li>
+</ol>
+<hr>
+<h2 id="qcon_3st_Day">qcon 3st Day</h2>
+<h4 id="你应该更新的Java知识_ThoughtWorks_郑晔">你应该更新的Java知识 ThoughtWorks 郑晔</h4>
+<p>这个分享是一个“软”演讲。但就是这种演讲，我觉得难度很大，需要那种厚积薄发，信手拈来的功力，所以一开始就比较期望他到底讲什么。<br>演讲一开始，郑晔就让从业10多年的人举下手，一看，会场上聊聊无几，感叹国内的程序员环境啊。<br>——如何去赞扬一个Java程序员？<br>——你写的代码真不像Java<br>10+年前的Java 符号：Hibernate、Maven、Jboss、Ant、Structs。<br>改变：open source、敏捷、Rail、多核、Java5-8、函数式编程、DSL<br>推荐了几个类库：Guava、Joda-Time、Mockito、DropWizard、Hamcrest<br>Java.NETXT:Groovy、scala、Clojure、ceylon<br>这个演讲有些指点江山的味道，10多年的沉淀还是不同的，技术味道远远就闻到。<br><a href="http://yunpan.taobao.com/share/link/R3Dty0sHO" target="_blank">PPT</a></p>
+<h4 id="API单位误解造成的严重故障_阿里巴巴_林昊(毕玄)">API单位误解造成的严重故障 阿里巴巴 林昊(毕玄)</h4>
+<p>看到这个题目之前，我就揣测该不会通过一个故障发生来讲怎么去排查故障吧？原想去其他会场，抵不住好奇心，还是留在了会场。<br>内容跟想象的相差不多，但是讲的确实比较生动，功力不俗。<br><a href="http://yunpan.taobao.com/share/link/93Dty0s2A" target="_blank">PPT</a></p>
+<h4 id="搜狗商业广告平台Java生态演化之路_搜狗_刘建">搜狗商业广告平台Java生态演化之路 搜狗 刘建</h4>
+<p>topic主要谈了搜狗的Java生态的演进过程，并列举了每个阶段的例子。</p>
+<ol>
+<li>原始阶段</li>
+<li>模块化阶段</li>
+<li>组件化阶段</li>
+<li>服务化阶段</li>
+</ol>
+<p>搜狗对于组件引入的“五部曲”比较有借鉴意义：</p>
+<ol>
+<li>需求评审</li>
+<li>组件研发</li>
+<li>灰度实验</li>
+<li>反馈优化</li>
+<li>全面推广，加入知识库<br>搜索的Java生态演进过程又验证了一句话<em>“历史总是惊人的相似”</em>。<br><a href="http://yunpan.taobao.com/share/link/F3Dty0sui" target="_blank">PPT</a></li>
+</ol>
+<h3 id="跨界演讲">跨界演讲</h3>
+<h4 id="从Hogwarts到Matrix_绿盟科技_Tombkeeper">从Hogwarts到Matrix 绿盟科技 Tombkeeper</h4>
+<p>其实我是对这哥们感兴趣。<br>Tombkeeper：绿盟科技安全研究部高级研究员。毕业于安徽医科大学，现任绿盟科技安全研究部高级研究员。从事信息安全技术研究十几年来，从事过的主要研究方向有漏洞分析、挖掘、利用、检测，恶意代码分析、检测、防护，移动终端和无线技术相关安全问题等。<br>医学领域一下子窜到了安全领域，做检查的对象从人变到了机器。<br>5分钟的演进很精彩。整个演讲内容是个隐喻：哈利波特通过九又四分之三站台的列车可以到达魔法世界霍格沃兹;黑客帝国的尼奥选择了带有追踪程序的红色药丸，脱离矩阵世界，来到没有电脑控制的真实世界;程序员也许就可以从某个现实生活的入口发现不完美的地方，通过0和1重新进行改造制造奇迹，这就是魔法。</p>
+<hr>
+<h3 id="最后">最后</h3>
+<p>每个主体演讲都是45分钟，听众能抓住内容的主体就不错了，不明白的地方只能自己迅速脑补或者事后再找资料看看，这次去也基本达成了自己设定的目标。<br>本次北京qcon，“云”和安全产品令琅满目。各种“云”，存储云、安全云、服务云、虚拟云、计算云，云里雾里了。展台上还有一些可穿戴设备体验，很赞。我还看到唯品会的一个开发经理手上有个智能保健手环，特地交流了一番。看来可穿戴设备进入寻常百姓家过不了多久了。<br>吐个槽：infq自助餐太粗放了。最重要的是前两天中午吃了自助餐，每次都肚子疼，第三天就不敢再吃了。</p>
+]]></content>
+    <summary type="html"><![CDATA[<h2 id="前言">前言</h2>
+<p>也不知道怎么写这个分享，就记个流水帐吧！<br>从未去过帝都，不过想来那地方是甚好的。这次能有机会去见识下，新鲜劲还是有一些的。这个要感谢下公司提供的这次宝贵机会。qcon大会我是第二次参加，第一次是12年的杭州qcon大会，协办方就是我们公司。那次大会的作用就是很大程度上去见见大观园，这个不是讲虚的，确实有疗效。这次给自己的目标有两个：第一个自己了解的领域多看看其他公司是怎么做的，跟阿里的有何不同;第二个自己不熟悉但关注的领域扫扫盲，比如云计算、大数据。所以去之前，仔细看了会议的安排和每个主题演讲的内容，选定了自己去参加的topic。带着这两个心里预期，还有HR的秘密使命，我们就奔着北京qcon去了。<br>下了飞机，在首都机场打了的士，直奔在四环的酒店。随行的博林同学做了下打车软件调查，结果这位师傅什么打车软件没使用。看来快的和嘀嘀的运营还做的不够啊。从首都机场出发3点多，从五环一路狂堵车到酒店5点多，帝都的路况还真是名副其实的糟糕。<br>PS：去的时候有点小失望，国航的飞机上都没怎么见到空姐。</p>
+<hr>
+<h2 id="qcon_1st_Day">qcon 1st Day</h2>
+<p>第一天6点半到会场签到，收获了池建强的一句话很NB的语录：“做技术的人，一定要多写文章。技术的，人文的，最好都写一点。慢慢的，科技在哪里，你就在那里了。但是最高的境界是你在哪里，科技和人文就在哪里”。会场的展台区是各个IT公司的工作人员，每个展台前都是有节操、无下限的美女，让我们这群屌丝任意消费。展会中包括IBM、腾讯、高德、七牛等大小公司都在宣传各自的“云”。展台宣传的东西除了“云”之外，另外就只有“安全”和“可穿戴设备”。这也很能说明当前业界的热点在哪里了。</p>
+<h3 id="早上的3个非主题演讲">早上的3个非主题演讲</h3>
+<p>国外公司的广告时间</p>
+<ol>
+<li>分别由AWS介绍了自己公司的nosql产品DynamoDB。（去参加qcon之前找的资料：<a href="http://aws.amazon.com/cn/dynamodb/" target="_blank">DynamonDB详细介绍</a>、<a href="http://www.programmer.com.cn/11081/" target="_blank">MongoDB的比较</a>)。</li>
+<li>大型前端应用的组件与模块。由英国金融时报实验室的一个前端哥们讲解他们的前端组件化。有个哥们整理的不错，直接粘上，因为我铁定没他整理的好（<a href="http://www.infoq.com/cn/news/2014/04/front-end-modular）。" target="_blank">http://www.infoq.com/cn/news/2014/04/front-end-modular）。</a></li>
+<li>请了一个生物学的科学家，研究生物神经的，跨界演讲，讲怎么利用大数据对鱼的神经活动进行研究，主要讲怎么研究鱼。其中利用了spark来对大数据进行计算和分析。That‘s all。整个topic听下来，对开发人员有用的就是一个词“spark”。</li>
+</ol>
+<h3 id="一、主题演讲">一、主题演讲</h3>
+<h4 id="Localization_of_Stack_Overflow_-StackOverFlow_Marco_Cecconi">Localization of Stack Overflow -StackOverFlow Marco Cecconi</h4>
+<p>stack overflow是一个大家都很熟悉的站点，大家很多的问题都在上面可以查阅到。Marco Cecconi是stack overflow的核心开发者之一，下面关于stack overflow网站架构也是由他来讲的。topic讲了讲了在8周内本地化Stack Overflow。有个观点让人印象深刻：同一个语言能够更加深入的交流，这个也是要做本地化的初衷。Marco讲到一个事情，中国的开发者在stack overflow上查阅问题的很多，但是来解答问题和交流的很少。why？Marco归咎为语言问题。对于怎么实现本地化，他讲的比较简单，我看了ppt也未看出所以然，自觉锉顿了。<br>ps：<a href="http://lanyrd.com/slides/" target="_blank">Marco blog</a><br><a href="https://speakerdeck.com/sklivvz/the-localization-of-stack-overflow-qcon-china-2014" target="_blank">PPT</a></p>
+<h4 id="OpenStack云服务平台设计与挑战_-UnitedStack_程辉">OpenStack云服务平台设计与挑战 -UnitedStack 程辉</h4>
+<p>OpenStack的开源生态在处在蓬勃房展阶段，已经有越来越多的互联网公司围绕着OpenStack建设自己的云。UnitedStack就是其中的一家。程辉作为原来新浪的员工，在新浪从事的就是Openstack相关的工作，他也是国内OpenStack的积极推广者。离职创业后，围绕OpenStack构建云服务，也成了他创业公司的基础。本次程辉也是作为qcon云主题的出品人参与的，所以他在业内也应该是相当有影响力的。Topic里面主要介绍了OpenStack的发展现状，以及产品的前景。UnitedStack围绕OpenStack构建云上已经作的工作和努力。去听这个演讲，纯属去扫盲的。不过还好，基本都听明白，再去翻了下ppt，确实扩展了一些云方面的知识。<br><a href="http://yunpan.taobao.com/share/link/A3Dty0s29" target="_blank">PPT</a></p>
+<h4 id="聚石塔：电子商务云平台_2013年双11历程_-阿里巴巴_陈皓">聚石塔：电子商务云平台 2013年双11历程 -阿里巴巴 陈皓</h4>
+<p>著名CoolShell博主耗子，目前就职于阿里云。他在本次Topic中有一个很鲜明的观点：云平台提供的不仅是资源,更是服务和解决方案。中间他也将了聚石塔是如何做平台。</p>
+<ol>
+<li>还债<br>出来混,迟早是要还的。以前欠下的债,时间越晚,偿还的利息就越多。所以,聚石塔欠下的技术债必需还。</li>
+<li>标准<br>无标准,不平台。何况是一个云平台。所以,需要建立聚石塔云平台的各种标准。</li>
+<li>管理<br>对于一个云平台来说,最重要的事情就是能把这么复杂的集群管理起来。而对于一个垂直云来说,还需要管理上面的应用业务。</li>
+<li>安全<br>聚石塔里有很多用户的数据,数据外泄一直是威胁聚石塔生存的恶魔,解决好数据安全是聚石塔头等大事。</li>
+<li>成长<br>我们必需通过种种手段,让聚石塔上的应用能跟淘宝天猫的系统的发展节奏一同成长。</li>
+</ol>
+<p>陈皓在topic里面还提到了另外一个观点：云计算就是拼运维。大家在info上也可以看看。<a href="http://www.infoq.com/cn/articles/chenhao-on-cloud?utm_source=infoq&amp;utm_medium=popular_links_homepage" target="_blank">左耳朵耗子谈云计算：拼的就是运维</a><br>当然，耗子对阿里也有诸多吐槽，此处省去800字。但是他也讲到阿里这边让他印象最深刻的是：在其他公司包括Amazon，从未见过如此热情开发工程师，效率高，Amazon干1年的活，在这里可能就干一个星期。<br>PS：这个topic人气爆棚，连地上一个屁股都放不下了，可见CoolShell的人气不是盖的。我也是陈皓的粉丝，毫不夸张的说，我们很多人都是看着CoolShell进入互联网领域的。池建强也说过这句话，可见陈皓江湖地位之尊崇。<br><a href="http://yunpan.taobao.com/share/link/23Dty0sMX" target="_blank">PPT</a></p>
+]]></summary>
+    
+      <category term="北京" scheme="www.itcamel.com/tags/%E5%8C%97%E4%BA%AC/"/>
+    
+      <category term="qcon" scheme="www.itcamel.com/tags/qcon/"/>
+    
+      <category term="会议" scheme="www.itcamel.com/tags/%E4%BC%9A%E8%AE%AE/"/>
+    
+      <category term="infoq" scheme="www.itcamel.com/tags/infoq/"/>
+    
+      <category term="交流分享" scheme="www.itcamel.com/categories/%E4%BA%A4%E6%B5%81%E5%88%86%E4%BA%AB/"/>
+    
+  </entry>
+  
+  <entry>
+    <title><![CDATA[NIO学习全概括]]></title>
+    <link href="www.itcamel.com/2013/02/26/nio-grammer/"/>
+    <id>www.itcamel.com/2013/02/26/nio-grammer/</id>
+    <published>2013-02-26T04:00:00.000Z</published>
+    <updated>2014-06-26T14:56:29.000Z</updated>
+    <content type="html"><![CDATA[<h4 id="前言">前言</h4>
+<p>最近在看java NIO的一些中文资料，确实比较的头疼。文章的好坏良莠不齐，好的文章一看，受益不少；讲的不好的，被引得偏差了3百里才绕回来。更有的只有NIO 1.0的内容，2.0的只字未提。本文主要目的是对NIO知识系统进行总结和梳理，并给大家提供一篇“能看”且较全面的文章.</p>
+<h3 id="一、操作系统I/O模型">一、操作系统I/O模型</h3>
+<p>学习NIO的前提是了解操作系统的I/O模型。</p>
+<p>操作系统I/O模型<br><img src="http://dl.iteye.com/upload/attachment/0080/8516/4d798990-7d27-37b9-8f11-cc32d03aa564.png" alt="I/O模型"></p>
+<p>很明显，操作系统中存在着两个空间：内核空间和用户空间。用户空间就是常规的应用进程所在的空间，一个或者多个jvm实例当然也是一个用户态的进程，所以运行需要资源都在用户空间。内核空间是操作系统内核运行所在的空间。用户空间的进行没有权限直接跨过内核空间，直接跟硬件进行I/O交互。</p>
+<p>当应用进程请求 I/O 操作的时候，JVM底层会执行一个系统调用（也就是说JVM所完成的任何操作，最终是通过native来实现），系统调用时，会将控制权移交给内核。操作系统的底层函数 open( )、read( )、write( )和 close( )来完成最终和硬件的交互。当内核完成调用后，得到了应用进程所需数据，它会在内核空间的缓存区保留数据，并把数据传送到用户空间内的指定缓冲区。内核试图对数据进行高速缓存或预读取，因此进程所需数据可能已经在内核空间里了。如果是这样，该数据只需简单地拷贝出来即可。如果数据不在内核空间，则进程被挂起，内核着手把数据读进内存。</p>
+<p>现代操作系统常会用到DMA(Direct Memory Access，直接内存存取)技术，MMU（Memory Management Unit，内存管理单元）。关于这些内容，大家可以自行找谷哥。一些基于I/O中的技术经常也会提到一个词“zero-copy“，相关介绍可以看我的前一篇文章 <a href="http://go-on.iteye.com/blog/1807749" target="_blank">http://go-on.iteye.com/blog/1807749</a><br><a id="more"></a></p>
+<h4 id="虚拟内存">虚拟内存</h4>
+<p>虚拟内存意为物理内存（硬件RAM）大小不够用的情况，通过操作系统的磁盘等设备，通过内存交换的方式来扩充内存。虚拟内存技术的利用，使得虚拟出来的内存能够远远大于实际的物理内存。因为内存地址也是虚拟的，所以就会存在两个不同的虚拟内存地址指向同一个物理内存。</p>
+<p><img src="http://dl.iteye.com/upload/attachment/0080/8518/4f72e960-57b0-31dc-a256-889e209fc54e.png" alt="内存"><br>磁盘控制器不能通过DMA对用户控件的内存进行访问。但是通过虚拟内存技术，可以把用户空间的内存和内核空间的内存映射到同一个物理地址上。这样DMA可以同时把数据写入到用户空间的缓冲区和内核空间缓冲区。后面介绍的NIO “直接缓存区“的概念跟它相关。</p>
+<h4 id="发散和聚集">发散和聚集</h4>
+<p><img src="http://dl.iteye.com/upload/attachment/0080/8520/784da437-a8a2-3746-b8ee-c50aa960abf7.png" alt="发散和聚集"><br>许多操作系统能把组装／分解过程进行得更加高效。根据发散／汇聚的概念，进程只需一个系统调用，就能把一连串缓冲区地址传递给操作系统。然后，内核就可以顺序填充或排干多个缓冲区，读的时候就把数据发散到多个用户空间缓冲区，写的时候再从多个缓冲区把数据汇聚起来这样用户进程就不必多次执行系统调用（那样做可能代价不菲），内核也可以优化数据的处理过程，因为它已掌握待传输数据的全部信息。如果系统配有多个CPU，甚至可以同时填充或排干多个缓冲区。这个知识点和NIO的特性“分散/聚集 I/O“相关。</p>
+<h3 id="二、阻塞和非阻塞、同步和异步">二、阻塞和非阻塞、同步和异步</h3>
+<p>阻塞和非阻塞是针对于进程在访问数据的时候，根据IO操作的就绪状态采取的不同方式，说白了是一种读取或者写入操作函数的实现方式。阻塞方式下读取或者写入函数将一直等待；而非阻塞方式下，读取或者写入函数会立即返回一个状态值，继续执行后面代码。</p>
+<p>同步和异步是针对应用程序和内核的交互而言的。同步指的是用户进程触发IO操作并等待或者轮询的去查看IO操作是否就绪；而异步是指用户进程触发IO操作以后便开始做自己的事情，而当IO操作已经完成的时候会得到IO完成的通知。</p>
+<p>所以I/O模型一般分为同步阻塞I/O、同步非阻塞I/O,异步阻塞I/O,异步非阻塞I/O。</p>
+<p>同步阻塞IO：<br>在此种方式下，用户进程在发起一个IO操作后，用户进程hold住，等待用户空间的IO操作完成，只有当真正完成了IO操作以后，用户进程才会继续运行。JAVA传统的IO模型属于此种方式。可以参照前面的I/O模型的用户态和内核态理解。</p>
+<p>同步非阻塞IO:<br>在此种方式下，用户进程发起一个IO请求以后，就可以往下继续执行，但是用户进程需要时不时地询问IO操作是否就绪。用户进程不间断的轮训，中间存在的一些进程上下文切换，会导致不必要的CPU资源浪费。目前NIO中较常用1.0的特性就属于同步非阻塞IO。</p>
+<p>异步阻塞IO：<br>此种方式下是指用户进程发起一个IO操作以后，不等待内核IO操作的完成，等内核完成IO操作以后会通知应用程序，这其实就是同步和异步最关键的区别，同步必须等待或者主动的去询问IO是否完成，那么为什么说是阻塞的呢？因为此时是通过select系统调用来完成的，而select函数本身的实现方式是阻塞的，而采用select函数有个好处就是它可以同时监听多个文件句柄，从而提高系统的并发性。</p>
+<p>异步非阻塞IO:<br>在此种模式下，用户进程只需要发起一个IO操作然后立即返回，等IO操作真正的完成以后，用户进程会得到IO操作完成的通知，此时用户进程只需要对数据进行处理就好了，不需要进行实际的IO读写操作，因为真正的IO读取或者写入操作已经由内核完成了。目前NIO 2.0的异步NIO支持此种IO模型。</p>
+<p>关于Linux系统的select,poll,epoll系统函数介绍，见LINUX多路复用select,poll,epoll 。JDK NIO在不同操作系统下的native实现不同，但是了解了Linux系统，基本掌握了精髓。</p>
+<h4 id="三、Reactor和Proactor模式">三、Reactor和Proactor模式</h4>
+<p>Reactor和Proactor是IO多路复用模式.一般地,I/O多路复用机制都依赖于一个事件多路分离器(Event Demultiplexer)。分离器对象可将来自事件源的I/O事件分离出来，并分发到对应的read/write事件处理器(EventHandler)。开发人员预先注册需要处理的事件及其事件处理器（或回调函数）。</p>
+<p>Reactor模式采用同步IO，而Proactor采用异步IO。</p>
+<h4 id="reactor">reactor</h4>
+<ol>
+<li>应用程序注册读/写就绪事件和相关联的事件处理器</li>
+<li>事件分离器等待事件的发生 (Reactor负责)</li>
+<li>当发生读就绪事件的时候，事件分离器调用第一步注册的事件处理器(Reactor负责)</li>
+<li>事件处理器首先执行实际的读取操作，然后根据读取到的内容进行进一步的处理(用户处理器负责)<h4 id="preactor">preactor</h4>
+</li>
+<li>应用程序初始化一个异步读取操作，然后注册相应的事件处理器，此时事件处理器不关注读取就绪事件，而是关注读取完成事件，这是区别于Reactor的关键。</li>
+<li>事件分离器等待读取操作完成事件</li>
+<li>在事件分离器等待读取操作完成的时候，操作系统调用内核线程完成读取操作（异步IO都是操作系统负责将数据读写到应用传递进来的缓冲区供应用程序操作，操作系统扮演了重要角色），并将读取的内容放入用户传递过来的缓存区中。这也是区别于Reactor的一点，Proactor中，应用程序需要传递缓存区。</li>
+<li>事件分离器捕获到读取完成事件后，激活应用程序注册的事件处理器，事件处理器直接从缓存区读取数据，而不需要进行实际的读取操作。</li>
+</ol>
+<h3 id="五、NIO深入">五、NIO深入</h3>
+<p>关于Select机制的原理可以通过陈皓（CoolShell博主）的两篇写的蛮有意思的文章来理解。<br>Java NIO类库Selector机制解析（上、下）<br><a href="http://haoel.blog.51cto.com/313033/124582" target="_blank">http://haoel.blog.51cto.com/313033/124582</a><br><a href="http://haoel.blog.51cto.com/313033/124578" target="_blank">http://haoel.blog.51cto.com/313033/124578</a><br>刚开始学习NIO的时候，在服务器写数据的时候，看到一段关于这样的IO写代码:</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+</pre></td><td class="code"><pre><span class="keyword">while</span> (keyIterator.hasNext()) { 
+    SelectionKey key = keyIterator.next(); 
+    keyIterator.remove(); 
+    <span class="keyword">if</span> (key.isConnectable()) { 
+        sc.finishConnect(); 
+        sc.register(selector, SelectionKey.OP_WRITE); 
+        System.out.println(<span class="string">"server connected..."</span>); 
+        <span class="keyword">break</span>; 
+    } <span class="keyword">else</span> <span class="keyword">if</span> (key.isWritable()) { 
+
+        System.out.println(<span class="string">"please input message"</span>); 
+        String message = scanner.nextLine(); 
+        ByteBuffer writeBuffer = ByteBuffer.wrap(message.getBytes()); 
+        sc.write(writeBuffer); 
+    } 
+}
+</pre></td></tr></table></figure>
+
+<p>其中关于SocketChannel的write（）方法，为什么还要采用reactor模式进行写而大感不解，这个方法不是非阻塞的吗？只要往里面写不ok了。后来才发现自己too simple，too naive。具体为什么需要reactor模式，<a href="http://qingfengjushi1.iteye.com/blog/1185070" target="_blank">参照java nio如何处理慢速的连接</a></p>
+<h3 id="六、NIO2_异步IO">六、NIO2 异步IO</h3>
+<p>网上大部分的关于NIO的文章，到同步非阻塞模式就嘎然而止，根本不提NIO2的异步非阻塞模式，而这样的文章被一而再，再而三的转载，却把最重要的东西湮没了，所以博文适时的更新是何其重要。关于此段内容，IBM的两位工程师提供了两篇详尽的文章，比较不错。<br><a href="http://www.ibm.com/developerworks/cn/java/j-nio2-1/" target="_blank">NIO.2 入门，第 1 部分: 异步通道 API</a><br><a href="http://www.ibm.com/developerworks/cn/java/j-nio2-2/index.html" target="_blank">NIO.2 入门，第 2 部分: 文件系统 API</a></p>
+<p>读完之后，你会觉得异步非阻塞模型确实很棒，这个才是我们最想要的I/O模型。</p>
+<h3 id="七、NIO开源框架">七、NIO开源框架</h3>
+<p>目前有较多的NIO开源框架，其中较出名的有MINA、CXF、Mule、JBoss/Geronimo，Grizzly，Cindy。有志者请自挖，这里不表。</p>
+<h3 id="八、总结">八、总结</h3>
+<p>这里的总结非是以技术论断结尾，而是以学习NIO的人文关怀结尾。Java开发者一味关注的基本是类库的API，但是对于系统调用层级的理解，跟c和c++开发者，只能望其项背了。但是有JDK的新特性，无不是对于通过底层调用的优化来实现性能飞跃。这么看来，《Linux编程艺术》系列的书籍一直是被Java开发者误认的“鸡肋”罢了！</p>
+<h3 id="参考引用：">参考引用：</h3>
+<p><a href="http://xmuzyq.iteye.com/blog/783218" target="_blank">http://xmuzyq.iteye.com/blog/783218</a><br><a href="http://developer.51cto.com/art/201112/307728.htm" target="_blank">http://developer.51cto.com/art/201112/307728.htm</a><br><a href="http://developer.51cto.com/art/201112/307671.htm" target="_blank">http://developer.51cto.com/art/201112/307671.htm</a></p>
+]]></content>
+    <summary type="html"><![CDATA[<h4 id="前言">前言</h4>
+<p>最近在看java NIO的一些中文资料，确实比较的头疼。文章的好坏良莠不齐，好的文章一看，受益不少；讲的不好的，被引得偏差了3百里才绕回来。更有的只有NIO 1.0的内容，2.0的只字未提。本文主要目的是对NIO知识系统进行总结和梳理，并给大家提供一篇“能看”且较全面的文章.</p>
+<h3 id="一、操作系统I/O模型">一、操作系统I/O模型</h3>
+<p>学习NIO的前提是了解操作系统的I/O模型。</p>
+<p>操作系统I/O模型<br><img src="http://dl.iteye.com/upload/attachment/0080/8516/4d798990-7d27-37b9-8f11-cc32d03aa564.png" alt="I/O模型"></p>
+<p>很明显，操作系统中存在着两个空间：内核空间和用户空间。用户空间就是常规的应用进程所在的空间，一个或者多个jvm实例当然也是一个用户态的进程，所以运行需要资源都在用户空间。内核空间是操作系统内核运行所在的空间。用户空间的进行没有权限直接跨过内核空间，直接跟硬件进行I/O交互。</p>
+<p>当应用进程请求 I/O 操作的时候，JVM底层会执行一个系统调用（也就是说JVM所完成的任何操作，最终是通过native来实现），系统调用时，会将控制权移交给内核。操作系统的底层函数 open( )、read( )、write( )和 close( )来完成最终和硬件的交互。当内核完成调用后，得到了应用进程所需数据，它会在内核空间的缓存区保留数据，并把数据传送到用户空间内的指定缓冲区。内核试图对数据进行高速缓存或预读取，因此进程所需数据可能已经在内核空间里了。如果是这样，该数据只需简单地拷贝出来即可。如果数据不在内核空间，则进程被挂起，内核着手把数据读进内存。</p>
+<p>现代操作系统常会用到DMA(Direct Memory Access，直接内存存取)技术，MMU（Memory Management Unit，内存管理单元）。关于这些内容，大家可以自行找谷哥。一些基于I/O中的技术经常也会提到一个词“zero-copy“，相关介绍可以看我的前一篇文章 <a href="http://go-on.iteye.com/blog/1807749" target="_blank">http://go-on.iteye.com/blog/1807749</a><br>]]></summary>
+    
+      <category term="nio" scheme="www.itcamel.com/tags/nio/"/>
+    
+      <category term="Java基础" scheme="www.itcamel.com/categories/Java%E5%9F%BA%E7%A1%80/"/>
+    
+  </entry>
+  
+  <entry>
+    <title><![CDATA[zero-copy]]></title>
+    <link href="www.itcamel.com/2013/02/19/zero-copy/"/>
+    <id>www.itcamel.com/2013/02/19/zero-copy/</id>
+    <published>2013-02-19T02:36:21.000Z</published>
+    <updated>2014-06-26T14:58:14.000Z</updated>
+    <content type="html"><![CDATA[<p>“Zero-copy” 用来描述主机的CPU不执行将数据从一个存储区复制到另一个的任务。这经常是在网络分发文件的时候用来节省电力和内存。</p>
+<h4 id="Principle">Principle</h4>
+<p>各种操作系统上的Zero-copy方式例如设备驱动程序，文件系统，网络协议栈，大大提高了某些应用程序的性能和系统资源利用率。在数据拷贝过到另外一个机器的过程中，允许CPU并行去处理另外的一个任务，性能可以有效地提高。此外， zero-copy 操作减少了用户空间和内核空间的切换时间。让一个cpu去处理大量的数据拷贝，数据拷贝本身是一个简单任务，这是一种极大浪费，如果有其他更简单的系统组件能够代为处理，将能够有效地提高资源利用率。</p>
+<p>举个例子，读取一个文件，然后通过网络发送。如果文件足够小，并适合放在文件缓存中，传统的方式需要4个数据副本和4个cpu的上下文切换。两个数据拷贝需要用到CPU。如果通过“zero-copy”来发送，cpu上下文切换能减少到2次，CPU的数据拷贝能够减少一半，甚至不用。<a href="http://en.wikipedia.org/wiki/Zero-copy#cite_note-j-zerocopy-1" target="_blank">1</a></p>
+<p>Zero-copy 对于网络链路的容量接近或者已经超过了CPU的处理能力的高速网络尤其重要。在这种情况下，CPU几乎全花费在了拷贝要传输的数据上，这是个瓶颈，限制了通信的速率只能低于链路容量。行业内的经验，大约一个CPU时钟周期，需要处理一个传入的数据位。<br><a id="more"></a><br>附磁盘I/O示例：<br><img src="http://dl.iteye.com/upload/attachment/0080/6968/b79864c5-7118-3e7f-b798-fa7425b7b0c7.jpg" alt="磁盘I/O"></p>
+<h4 id="Implementation">Implementation</h4>
+<p>zero-copy 技术需要使用基于<a href="http://en.wikipedia.org/wiki/Direct_memory_access" target="_blank">DMA</a>的复制和通过<a href="http://en.wikipedia.org/wiki/Memory_management_unit" target="_blank">MMU</a>的内存映射。这些功能需要特定的硬件支持，通常对于内存也有特定的要求。</p>
+<h4 id="Programmatic_access">Programmatic access</h4>
+<p>一些操作系统是通过特定的API来支持zero-copy的。<br>Linux 通过系统调用，比如sys/socket.h 中的sendfile，sendfile64来支持zero-copy。<br>Windows 通过TransmitFile API来支持zero-copy。<br>Java input streams 通过 java.nio.channels.FileChannel’s transferTo() 方法来支持zero-copy，但是必须是底层操作系统能够支持zero-copy的前提下。[1]<br><a href="http://en.wikipedia.org/wiki/RDMA" target="_blank">RDMA</a> (Remote Direct Memory Access) 协议强依赖于zero-copy技术。</p>
+<h4 id="See_also">See also</h4>
+<p><a href="http://en.wikipedia.org/wiki/Device_driver" target="_blank">Device driver</a><br><a href="http://en.wikipedia.org/wiki/Embedded_system" target="_blank">Embedded system</a><br><a href="http://en.wikipedia.org/wiki/Infiniband" target="_blank">Infiniband</a><br><a href="http://en.wikipedia.org/wiki/Programmed_input/output" target="_blank">Programmed input/output</a><br><a href="http://en.wikipedia.org/wiki/Socket_Direct_Protocol" target="_blank">Socket Direct Protocol</a></p>
+<h4 id="References">References</h4>
+<p>1、<a href="http://www.ibm.com/developerworks/library/j-zerocopy/index.html" target="_blank">^ a b c Efficient data transfer through zero copy by Sathish K. Palaniappan and Pramod B. Nagaraja. September 2008</a></p>
+]]></content>
+    <summary type="html"><![CDATA[<p>“Zero-copy” 用来描述主机的CPU不执行将数据从一个存储区复制到另一个的任务。这经常是在网络分发文件的时候用来节省电力和内存。</p>
+<h4 id="Principle">Principle</h4>
+<p>各种操作系统上的Zero-copy方式例如设备驱动程序，文件系统，网络协议栈，大大提高了某些应用程序的性能和系统资源利用率。在数据拷贝过到另外一个机器的过程中，允许CPU并行去处理另外的一个任务，性能可以有效地提高。此外， zero-copy 操作减少了用户空间和内核空间的切换时间。让一个cpu去处理大量的数据拷贝，数据拷贝本身是一个简单任务，这是一种极大浪费，如果有其他更简单的系统组件能够代为处理，将能够有效地提高资源利用率。</p>
+<p>举个例子，读取一个文件，然后通过网络发送。如果文件足够小，并适合放在文件缓存中，传统的方式需要4个数据副本和4个cpu的上下文切换。两个数据拷贝需要用到CPU。如果通过“zero-copy”来发送，cpu上下文切换能减少到2次，CPU的数据拷贝能够减少一半，甚至不用。<a href="http://en.wikipedia.org/wiki/Zero-copy#cite_note-j-zerocopy-1" target="_blank">1</a></p>
+<p>Zero-copy 对于网络链路的容量接近或者已经超过了CPU的处理能力的高速网络尤其重要。在这种情况下，CPU几乎全花费在了拷贝要传输的数据上，这是个瓶颈，限制了通信的速率只能低于链路容量。行业内的经验，大约一个CPU时钟周期，需要处理一个传入的数据位。<br>]]></summary>
+    
+      <category term="Zero-copy" scheme="www.itcamel.com/tags/Zero-copy/"/>
+    
+      <category term="MMU" scheme="www.itcamel.com/tags/MMU/"/>
+    
+      <category term="DMA" scheme="www.itcamel.com/tags/DMA/"/>
+    
+      <category term="Linux系统知识" scheme="www.itcamel.com/categories/Linux%E7%B3%BB%E7%BB%9F%E7%9F%A5%E8%AF%86/"/>
+    
+  </entry>
+  
+  <entry>
+    <title><![CDATA[分布式日志系统类比]]></title>
+    <link href="www.itcamel.com/2013/02/06/%E5%88%86%E5%B8%83%E5%BC%8F%E6%97%A5%E5%BF%97%E7%B3%BB%E7%BB%9F%E7%B1%BB%E6%AF%94/"/>
+    <id>www.itcamel.com/2013/02/06/分布式日志系统类比/</id>
+    <published>2013-02-06T02:57:19.000Z</published>
+    <updated>2014-06-26T14:57:13.000Z</updated>
+    <content type="html"><![CDATA[<h4 id="背景">背景</h4>
+<p>Google、Facebook、Amazon等互联网巨头对于数据的创造性使用，创造出了很多辉煌的商业产品。如Amazon创造出的新的推荐模式：”查询此商品的顾客也查询了。。。。。”、“看过此商品的后的顾客买的其他商品有。。。。。。”、“购买了您最近浏览过的商品的顾客同时购买了。。。。。。”，还有LinkedIn公司创造的“你可能认识的人”。这些机制无不是建立在大量数据分析的基础上。</p>
+<h4 id="分布式日志方案">分布式日志方案</h4>
+<p>作为互联网公司，每天庞大的日志数据将是一笔宝贵的财富，对大规模日志数据进行采集、追踪、处理将是非常有收益的。一些开源项目的出现，也极快地促进了这个方面工作的进展。<br>本文针对据目前流行的日志框架，主要根据互联网的一些资料，结合自己的一些了解，对一些关键因素进行横向的对比，比便对技术选型提供参考。<br><a id="more"></a></p>
+<h5 id="关键要素">关键要素</h5>
+<ul>
+<li><p>配置（Configuration）<br>客服端如何发现服务端？（不好的方式：固定配置。好的方式：基于zookeeper的pub-sub）<br>怎么配置消息路由？（点对点；广播；通过brokers路由消息（kafka））</p>
+</li>
+<li><p>容错（Failure and Recovery）<br>当集群中的一个节点出错，系统是如何什么方式进行buffer的？<br>系统是否保证数据传输过程的高可用，一旦发送，即保证到达。<br>系统是否支持树状集群。</p>
+</li>
+<li><p>维护管理（Maintenance）<br>本地的日志是否可以被配置成持久化，都提供了哪些支持？<br>如果日志数据被发送，消息是否是有序的？</p>
+</li>
+</ul>
+<h4 id="Kafka">Kafka</h4>
+<p>Kafka是一个大型分布式日志框架，实际更是消息中间件（类似RabbitMQ,ActiveMQ,etc）。但是他不同于一般的消息中间件，不遵从消息队列的协议，一般消息中间件的协议里面消息是不能被消费者删除掉的（或者标记成删除）。</p>
+<h5 id="体系架构：">体系架构：</h5>
+<p><img src="http://dl.iteye.com/upload/attachment/0080/3601/918a06ae-86bf-398b-b9f4-66159e9f373f.jpg" alt="Kafka"><br>Kafka设计的目标：高吞吐量</p>
+<p>数据被存储在OS pagecache，这使得消息的数据存储不能可能造成out of memory。Kafka<br>宣称他们改进了Varnish的pagecache-centric design。消息在brokers上被保存在文件上并建索引。消息根据到达的时间戳是有序的, 不产生二次索引,这样就可以很容易进行顺序文件访问和高效的磁盘扫描，即便是在数据量很大的情况下。文件通过Java中的 FileChannel.transferTo发送，操作系统层面是sendFile（），这样避免了额外的数据考虑。这个号称“Zero-copy”的机制比直接存内存的消息队列性能好上很多，具体原因可以看主创团队如何解释。</p>
+<p>消息的状态维护是消费者自己负责的，通过Zookeeper来协调一致性。负载均衡和分布式消息的分区也是Zookeeper来实现的。这意味着，所有消息随机的分布在各个broker上，每个broker都注册到Zooker上。每个消息的生产者可以通过broker列表来选择一个broker去发送消息。Kafka在producer和broker层都不提供保障机制。消费端负责保存消息状态。但是Broker可以保留缓存一个固定时间段的消息。比如LinkderIn保留一个星期的数据在每个broker上，这意味着如果消费者fail，那么在一个星期内，这个消费者如果重启，它能够衔接上原来的顺序接着消费。</p>
+<h5 id="Pros">Pros</h5>
+<p>• 支持发布/订阅机制<br>• 通过OS pagecache + sendfile()，JVM内存占用低<br>• 客户端API支持多语言<br>• Brokers不保存状态，有助于吞吐量的提升<br>• 使用ZooKeeper来做配置管理和容错</p>
+<h5 id="Cons">Cons</h5>
+<p>• 用Scala开发实行，必须跑在JVM上<br>• 没有消息可靠性保证，必须自己去监控消息数据丢失<br>• 没有像Flume数据流的概念，必须通过订阅消息的方式</p>
+<a id="more"></a>
+
+<h5 id="See_Also">See Also</h5>
+<p>• <a href="http://incubator.apache.org/kafka/design.html" target="_blank">Kafka Design Document</a><br>• <a href="http://www.quora.com/Apache-Kafka/Kafka-writes-every-message-to-broker-disk-Still-performance-wise-it-is-better-than-some-of-the-in-memory-message-storing-message-queues-Why-is-that" target="_blank">Why is Kafka faster than other Message Queues?</a><br>• <a href="http://sna-projects.com/blog/2011/08/kafka/" target="_blank">Really good presentation from LinkedIn on Kafka’s architecture</a><br>• <a href="http://research.microsoft.com/en-us/um/people/srikanth/netdb11/netdb11papers/netdb11-final12.pdf" target="_blank">Kafka whitepaper</a></p>
+<h4 id="Flume">Flume</h4>
+<p>Flume是一个分布式、可靠、高可用的海量日志聚合系统，支持在系统中定制各类数据发送方，用于收集数据；同时，Flume提供对数据的简单处理，并写到各种数据接收方的能力。<br>Flume 在0.9.x and 1.x之间有较大的架构调整，1.x版本之后的改称Flume NG，0.9.x的称为Flume OG。New和Old的分界岭如下。</p>
+<h5 id="体系架构：-1">体系架构：</h5>
+<p>Flume NG 体系架构<br><img src="http://dl.iteye.com/upload/attachment/0080/3604/b4110479-40e6-33e5-935f-e0e6f8150a01.png" alt="Flume NG 体系架构"><br>Flume OG 体系架构<br><img src="http://dl.iteye.com/upload/attachment/0080/3609/efa026d9-f8d4-3fd2-92cf-4dcf906a1176.png" alt="Flume OG 体系架构"><br>Flume NG在之前版本的基础上进行了重构和精简，去除了Zookeeper对于集中式配置管理、负载均衡和集群管理的支持，而专注于对数据流的采集和传输。对于每个服务器Node的配置，都需要自行在Node上配置。没法说这样的简化是好是坏，需求不一样，评价自然不同。因为Flume OG已经不再进行版本更新，所以后面讨论的Flume都是指Flume NG。</p>
+<p>Flume Age是一个运行在JVM中的进程，主要任务是把Event（消息）从外部的一个source开始流向到下一个结点。Flune NG 有一个“数据流”的概念。</p>
+<p>数据源（source）：消费Events消息，并把消息传递出去。比如一个Avro的source能够接收来自Avro客户端采集到的或者其他Agent的sink发送过来的Event消息。当source接收到Event，它把消息保存到一个或者多个channel中，直到消费者通过sink来消费Event。sink把消息从channel中移出，并放到外部的存储（如HDFS，通过HDFS sink）或者是把消息推向另外一个Flume Agent的source。</p>
+<p>Flume提供了各种source的实现，包括Avro Source、Exce Source、Spooling Directory Source、NetCat Source、Syslog Source、Syslog TCP Source、Syslog UDP Source、HTTP Source、HDFS Source，etc。<br>Flume也提供了各种sink的实现，包括HDFS sink、Logger sink、Avro sink、File Roll sink、Null sink、HBase sink，etc。<br>Flume对于Channel，则提供了Memory Channel、JDBC Chanel、File Channel，etc。</p>
+<h5 id="Pros-1">Pros</h5>
+<p>可靠，多层消息容错保障机制。<br>由Cloudera支持，已经有整套的log到HDFS实现<br>基于配置部署即可，不需要额外的开发工作<br>source、sink、channel有丰富的协议、门类实现</p>
+<h5 id="Cons-1">Cons</h5>
+<p>Java实现，必须运行在JVM上<br>如果sink堵塞，会产生大量的备份日志<br>没有publish/subscribe机制<br>Flume已经停止开发，Flume NG的版本正在逐渐稳定中<br>负载均衡、集群管理、配置管理需要自己集成其他例如Zookeeper等框架实现</p>
+<h5 id="See_Also-1">See Also</h5>
+<p>• <a href="http://archive.cloudera.com/cdh/3/flume/UserGuide/index.html" target="_blank">Flume User Guide</a><br>• <a href="http://archive.cloudera.com/cdh/3/flume/Cookbook/index.html" target="_blank">Flume Cookbook</a><br>• <a href="http://www.quora.com/What-are-issues-to-be-aware-of-when-deploying-Flume-in-production" target="_blank">Issues to be aware of when using Flume in production</a><br>• <a href="http://karankurani.tumblr.com/post/25774822317/being-at-funzio-part-4-of-n" target="_blank">blog post about production trouble with Flume. (This guy might not know what he was doing though.)</a><br>• <a href="http://mail-archives.apache.org/mod_mbox/incubator-flume-dev/201107.mbox/%3CCAAha9a0jzaWbjCF+uaTFRWLWRR8E2nS6K+Jm7vyehCVsEWV+Cw@mail.gmail.com%3E" target="_blank">publish/subscribe upcoming in Flume-NG</a></p>
+<h4 id="Chuwa">Chuwa</h4>
+<p>Chukwa是Hadoop的一个子项目，致力于大规模日志收集和分析。Chukwa是建立在Hadoop分布式文件系统（HDFS）和MapReduce框架之上，并继承了Hadoop的可扩展性和鲁棒性。Chukwa还包括一个灵活，功能强大的工具包，用于显示监测和分析结果，以充分利用此收集的数据。</p>
+<h5 id="体系架构：-2">体系架构：</h5>
+<p><img src="http://dl.iteye.com/upload/attachment/0080/3606/5de0e258-aa20-3213-9f42-7a7e9c3967c8.png" alt="体系架构"></p>
+<p>其中主要的部件为: </p>
+<ol>
+<li>Agent：负责采集最原始的数据,并发送给collectors。Agent添加了“watchdog”机制，一旦agent出现故障，会自动重启终止的数据采集进程，防止数据源的数据丢失。</li>
+<li>Adaptor： 直接采集数据的接口和工具，chukwa对以下常见的数据来源包括命令行输出、log 文件和 httpSender等提供了实现。一个 agent 可以管理多个 adaptor 的数据采集。</li>
+<li>Collectors：负责收集 agents 收送来的数据,并定时写入集群中。Collector负责把大量小文件合并成少量大文件，再写入集群，以发挥hadoop在处理少量大文件上的优势。Collertor层实现了负载均衡，agent随机从列表中选择collertor来发送数据。</li>
+<li>map/reduce jobs：定时启动,负责把集群中的数据分类、排序、去重和合并 </li>
+<li>HICC：负责数据的展示。</li>
+</ol>
+<h5 id="Pros-2">Pros</h5>
+<p>hadoop的子项目，有一套统一的大数据支持的生态环境<br>yahoo推动，版本更新较快<br>有监测和分析结果显示的web-portal工具<br>有对于大量少文件合并成少量大文件的处理，能够最大化hadoop威力<br>对于数据分类、排查，去重、合并，现成的方案实现<br>内置了两个mapreduce作业，分别用于获取data和将data转化为结构化的log。存储到datastore（可以是数据库或者HDFS等）中</p>
+<h5 id="Conns">Conns</h5>
+<p>数据收集和处理的实时性要求不高<br>Java实现，运行在JVM上<br>可供个性化实现的接口不多，除了Storage端<br>比较重量级的一套方案，适用于大型的集群</p>
+<h5 id="See_Also-1">See Also</h5>
+<p>• <a href="http://incubator.apache.org/chukwa/docs/r0.4.0/" target="_blank">Chukwa Documentation</a><br>• <a href="http://wiki.apache.org/hadoop/Chukwa/" target="_blank">Hadoop Wiki Chukwa</a></p>
+<h4 id="Scribe">Scribe</h4>
+<p>Scribe是facebook开源的日志收集系统，在facebook内部已经得到大量的应用。 Scribe是基于一个使用非阻断C++服务器的thrift服务的实现。它能够从各种日志源上收集日志，存储到<br>一个中央存储系统 （可以是NFS，分布式文件系统等）上，以便于进行集中统计分析处理。它为日志的“分布式收集，统一处理”提供了一个可扩展的，高容错的方案。</p>
+<h5 id="体系架构：-3">体系架构：</h5>
+<p><img src="http://dl.iteye.com/upload/attachment/0080/3626/f33c6958-9061-33b5-892f-f47c62d55b0c.jpg" alt="体系架构"><br>Scribe从各种数据源上收集数据，放到一个共享队列上，然后push到后端的中央存储系上。当中央存储系统出现故障时，scribe可以暂时把日志写到本地文件中，待中央存储系统恢复性能后，scribe把本地日志续传到中央存储系统上。</p>
+<p>(1) scribe agent<br>scribe agent实际上是一个thrift client。 向scribe发送数据的唯一方法是使用thrift client，scribe内部定义了一个thrift接口，用户使用该接口将数据发送给server。<br>(2) scribe<br>scribe接收到thrift client发送过来的数据，根据配置文件，将不同topic的数据发送给不同的对象。scribe提供了各种各样的store，如 file， HDFS等，scribe可将数据加载到这些store中。<br>(3) 存储系统<br>存储系统实际上就是scribe中的store，当前scribe支持非常多的store，包括file（文件），buffer（双层存储，一个主储存，一个副存储），network（另一个scribe服务器），bucket（包含多个 store，通过hash的将数据存到不同store中），null(忽略数据)，thriftfile（写到一个Thrift TFileTransport文件中）和multi（把数据同时存放到不同store中）。</p>
+<h5 id="Pros-3">Pros</h5>
+<p>多客户端语言支持（Thrift提供支持）<br>C++实现<br>支持日志分类和自动切分（按照文件大小和时间切分）<br>配置简单、灵活</p>
+<h5 id="Conns-1">Conns</h5>
+<p>不再是一个活跃项目，Facebook正在逐渐冷落它<br>有可能会有单点故障（中心服务器、本地服务器、收集日志的客户端程序）<br>日志切换可能导致日志丢失</p>
+<h5 id="See_Also-1">See Also</h5>
+<p>• <a href="http://www.quora.com/Scribe/Is-Scribe-still-maintained" target="_blank">Is Scribe Still Maintained?</a><br>• <a href="http://www.quora.com/Why-did-Facebook-develop-Puma-pTail-instead-of-using-existing-ones-like-Flume" target="_blank">Why did Facebook develop a new logging service?. In particular check out Sam Rash’s answer and presentation on Calligraphus and Facebook’s data freeway.</a><br>• <a href="http://ottomata.org/tech/whats-up-scribe/" target="_blank">What’s Up Scribe? - Otto’s blog post on Scribe packaging and summary of Calligraphus.</a></p>
+<h4 id="概括">概括</h4>
+<p>总的特性比对，可以用一张表概括之。<a href="https://docs.google.com/spreadsheet/pub?key=0AvpRkIqSY9hNdFNoYWFIX29hMnFuenV1ckRvYzEzUVE&amp;gid=0" target="_blank">比对表格</a></p>
+<p>国内一些大型的互联网公司都各自在大数据的采集和分析上开始发力，同时也根据各自的情况“因地制宜”地发展了一些自己的日志系统，其实声势较大的首推淘宝的TimeTunnel。<br>TimeTunnel是一个基于thrift通讯框架搭建的实时数据传输平台，具有高性能、实时性、顺序性、高可靠性、高可用性、可扩展性等特点。TimeTunnel的设计和Kafka有一些类似，但是在不少地方都进行了改进。TimeTunnel在更新多个版本之后也已经开源，有兴趣的可以看看。</p>
+<p><a href="http://code.taobao.org/p/TimeTunnel/wiki/index/" target="_blank">TimeTunnel wiki</a><br><a href="http://code.taobao.org/p/TimeTunnel/src/" target="_blank">TimeTunnel code</a></p>
+]]></content>
+    <summary type="html"><![CDATA[<h4 id="背景">背景</h4>
+<p>Google、Facebook、Amazon等互联网巨头对于数据的创造性使用，创造出了很多辉煌的商业产品。如Amazon创造出的新的推荐模式：”查询此商品的顾客也查询了。。。。。”、“看过此商品的后的顾客买的其他商品有。。。。。。”、“购买了您最近浏览过的商品的顾客同时购买了。。。。。。”，还有LinkedIn公司创造的“你可能认识的人”。这些机制无不是建立在大量数据分析的基础上。</p>
+<h4 id="分布式日志方案">分布式日志方案</h4>
+<p>作为互联网公司，每天庞大的日志数据将是一笔宝贵的财富，对大规模日志数据进行采集、追踪、处理将是非常有收益的。一些开源项目的出现，也极快地促进了这个方面工作的进展。<br>本文针对据目前流行的日志框架，主要根据互联网的一些资料，结合自己的一些了解，对一些关键因素进行横向的对比，比便对技术选型提供参考。<br><!-- more --></p>
+<h5 id="关键要素">关键要素</h5>
+<ul>
+<li><p>配置（Configuration）<br>客服端如何发现服务端？（不好的方式：固定配置。好的方式：基于zookeeper的pub-sub）<br>怎么配置消息路由？（点对点；广播；通过brokers路由消息（kafka））</p>
+</li>
+<li><p>容错（Failure and Recovery）<br>当集群中的一个节点出错，系统是如何什么方式进行buffer的？<br>系统是否保证数据传输过程的高可用，一旦发送，即保证到达。<br>系统是否支持树状集群。</p>
+</li>
+<li><p>维护管理（Maintenance）<br>本地的日志是否可以被配置成持久化，都提供了哪些支持？<br>如果日志数据被发送，消息是否是有序的？</p>
+</li>
+</ul>
+<h4 id="Kafka">Kafka</h4>
+<p>Kafka是一个大型分布式日志框架，实际更是消息中间件（类似RabbitMQ,ActiveMQ,etc）。但是他不同于一般的消息中间件，不遵从消息队列的协议，一般消息中间件的协议里面消息是不能被消费者删除掉的（或者标记成删除）。</p>
+<h5 id="体系架构：">体系架构：</h5>
+<p><img src="http://dl.iteye.com/upload/attachment/0080/3601/918a06ae-86bf-398b-b9f4-66159e9f373f.jpg" alt="Kafka"><br>Kafka设计的目标：高吞吐量</p>
+<p>数据被存储在OS pagecache，这使得消息的数据存储不能可能造成out of memory。Kafka<br>宣称他们改进了Varnish的pagecache-centric design。消息在brokers上被保存在文件上并建索引。消息根据到达的时间戳是有序的, 不产生二次索引,这样就可以很容易进行顺序文件访问和高效的磁盘扫描，即便是在数据量很大的情况下。文件通过Java中的 FileChannel.transferTo发送，操作系统层面是sendFile（），这样避免了额外的数据考虑。这个号称“Zero-copy”的机制比直接存内存的消息队列性能好上很多，具体原因可以看主创团队如何解释。</p>
+<p>消息的状态维护是消费者自己负责的，通过Zookeeper来协调一致性。负载均衡和分布式消息的分区也是Zookeeper来实现的。这意味着，所有消息随机的分布在各个broker上，每个broker都注册到Zooker上。每个消息的生产者可以通过broker列表来选择一个broker去发送消息。Kafka在producer和broker层都不提供保障机制。消费端负责保存消息状态。但是Broker可以保留缓存一个固定时间段的消息。比如LinkderIn保留一个星期的数据在每个broker上，这意味着如果消费者fail，那么在一个星期内，这个消费者如果重启，它能够衔接上原来的顺序接着消费。</p>
+<h5 id="Pros">Pros</h5>
+<p>• 支持发布/订阅机制<br>• 通过OS pagecache + sendfile()，JVM内存占用低<br>• 客户端API支持多语言<br>• Brokers不保存状态，有助于吞吐量的提升<br>• 使用ZooKeeper来做配置管理和容错</p>
+<h5 id="Cons">Cons</h5>
+<p>• 用Scala开发实行，必须跑在JVM上<br>• 没有消息可靠性保证，必须自己去监控消息数据丢失<br>• 没有像Flume数据流的概念，必须通过订阅消息的方式</p>
+]]></summary>
+    
+      <category term="日志" scheme="www.itcamel.com/tags/%E6%97%A5%E5%BF%97/"/>
+    
+      <category term="kafka" scheme="www.itcamel.com/tags/kafka/"/>
+    
+      <category term="Flume" scheme="www.itcamel.com/tags/Flume/"/>
+    
+      <category term="Chuwa" scheme="www.itcamel.com/tags/Chuwa/"/>
+    
+      <category term="Scribe" scheme="www.itcamel.com/tags/Scribe/"/>
+    
+      <category term="架构" scheme="www.itcamel.com/categories/%E6%9E%B6%E6%9E%84/"/>
+    
+  </entry>
+  
+  <entry>
+    <title><![CDATA[Instrument小窥]]></title>
+    <link href="www.itcamel.com/2012/11/16/instrument%E5%B0%8F%E7%AA%A5/"/>
+    <id>www.itcamel.com/2012/11/16/instrument小窥/</id>
+    <published>2012-11-16T13:15:01.000Z</published>
+    <updated>2014-06-26T14:57:39.000Z</updated>
+    <content type="html"><![CDATA[<p>java.lang.instrument是java 5开始引入的,它把 Java 的 instrument 功能从本地代码中解放出来，使之可以用 Java 代码的方式解决问题。使用 Instrumentation，开发者可以构建一个独立于应用程序的代理程序（Agent），用来监测和协助运行在 JVM 上的程序，甚至能够替换和修改某些类的定义.</p>
+<p>Java5的特性:运行前利用命令行参数或者系统参数来设置代理类，虚拟机在初始化之时（在绝大多数的 Java 类库被载入之前），instrumentation 的设置已经启动，并在虚拟机中设置了回调函数，检测特定类的加载情况，并根据设置完全特定功能.<br><a id="more"></a><br>例子1:<br><code>Mainclass代码</code></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9
+</pre></td><td class="code"><pre><span class="keyword">package</span> instrumentexample;  
+  
+<span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">MainClass</span> {</span>  
+  
+    <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">main</span>(String[] args) <span class="keyword">throws</span> InterruptedException {  
+        System.out.println(<span class="string">"MainClass invoke main function"</span>);  
+    }  
+  
+}
+</pre></td></tr></table></figure>
+
+
+<p><code>Premain代码</code></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+</pre></td><td class="code"><pre><span class="keyword">package</span> instrumentexample;  
+  
+<span class="keyword">import</span> java.io.IOException;  
+<span class="keyword">import</span> java.lang.instrument.Instrumentation;  
+  
+<span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">Premain</span> {</span>  
+  
+    <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">premain</span>(String agentArgs, Instrumentation inst)  
+            <span class="keyword">throws</span> IOException {  
+        Class[] classes = inst.getAllLoadedClasses();  
+        <span class="keyword">for</span> (Class classstr : classes) {  
+            System.out.println(<span class="string">"Class:"</span> + classstr.getName() + <span class="string">";ClassLoader:"</span>  
+                    + classstr.getClassLoader());  
+        }  
+  
+    }  
+  
+}
+</pre></td></tr></table></figure>
+
+
+<figure class="highlight"><table><tr><td class="gutter"><pre>1
+2
+</pre></td><td class="code"><pre>javac instrumentexample/Premain<span class="preprocessor">.java</span> 
+jar -cvf agent<span class="preprocessor">.jar</span> instrumentexample/Premain<span class="preprocessor">.class</span>
+</pre></td></tr></table></figure>
+
+<p>打包出一个agent.jar,并修改MANIFEST.MF 文件,添加 Premain-Class属性</p>
+<figure class="highlight"><table><tr><td class="gutter"><pre>1
+2
+3
+</pre></td><td class="code"><pre><span class="attribute">Manifest-Version</span>: <span class="string">1.0  </span>
+<span class="attribute">Premain-Class</span>: <span class="string">instrumentexample.Premain  </span>
+<span class="attribute">Created-By</span>: <span class="string">1.6.0_20 (Sun Microsystems Inc.)</span>
+</pre></td></tr></table></figure>
+
+<p>执行:</p>
+<figure class="highlight"><table><tr><td class="gutter"><pre>1
+</pre></td><td class="code"><pre>java -javaagent:agent<span class="preprocessor">.jar</span> instrumentexample/MainClass
+</pre></td></tr></table></figure>
+
+<p>打印结果可看到:</p>
+<figure class="highlight"><table><tr><td class="gutter"><pre>1
+</pre></td><td class="code"><pre><span class="constant">Class</span><span class="symbol">:instrumentexample</span>.<span class="constant">Premain</span>;<span class="constant">ClassLoader</span><span class="symbol">:sun</span>.misc.<span class="constant">Launcher</span><span class="variable">$AppClassLoader</span><span class="variable">@df6ccd</span>
+</pre></td></tr></table></figure>
+
+<p>却看不到对应的MainClass被classload加载. 这个说明了在Premain被加载并执行后,MainClass还未被AppClassLoader加载入JVM. 而对应其他的被BootstrapClassLoader加载的类都已经被完全被加载了.莫忘记了,连同AppClassLoader这个类是Java实现,也是需要被ClassLoader加载的,而这个加载器正是BootstrapClassLoader.</p>
+<p>instrument如何实现改变方法的执行呢?通过字节码修改方式.<br>例子2:</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre>1
+2
+3
+4
+5
+6
+7
+</pre></td><td class="code"><pre><span class="keyword">package</span> instrumentexample;  
+  
+<span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">Person</span> {</span>  
+    <span class="keyword">public</span> <span class="keyword">void</span> <span class="title">sayName</span>() {  
+        System.out.println(<span class="string">"I am Justin"</span>);  
+    }  
+}
+</pre></td></tr></table></figure>
+
+
+<figure class="highlight java"><table><tr><td class="gutter"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+</pre></td><td class="code"><pre><span class="keyword">package</span> instrumentexample;  
+  
+<span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">MainClass</span> {</span>  
+  
+    <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">main</span>(String[] args) <span class="keyword">throws</span> InterruptedException {  
+        Person person = <span class="keyword">new</span> Person();  
+        person.sayName();  
+    }  
+  
+}
+</pre></td></tr></table></figure>
+
+
+<p>想把Person的名称改成LiLei呢?instument有一个ClassFileTransformer接口,接口中只有一个唯一的方法.</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre>1
+2
+3
+4
+5
+6
+7
+</pre></td><td class="code"><pre><span class="keyword">byte</span>[]  
+ transform(  ClassLoader         loader,  
+             String              className,  
+             Class&lt;?&gt;            classBeingRedefined,  
+             ProtectionDomain    protectionDomain,  
+             <span class="keyword">byte</span>[]              classfileBuffer)  
+     <span class="keyword">throws</span> IllegalClassFormatException;
+</pre></td></tr></table></figure>
+
+<p>加了agent后,每个被加载的class都会被检查一遍. classfileBuffer是类文件的字节码被当作字节码数组传递进来,返回值被改变后的class字节码,如果返回null,则字节码不被修改.在该方法中,字节码的任何改变都会在ClassLoader中重新生效.我们可以通过字节码增强的工具如ASM,Cglin,BCEL等工具进行字节码增强,改变原来class,执行新功能.当然目前的只针对被 AppClassLoader加载的类,如果更改BootstrapClassLoader,ExtClassLoader加载的类,则需求其他的修改,后面会举例.</p>
+<p>下面用最简单的,重新加载一个class文件的方式实现字节码修改.修改后的新Person</p>
+<p><code>Person代码</code></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre>1
+2
+3
+4
+5
+</pre></td><td class="code"><pre><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">Person</span> {</span>  
+    <span class="keyword">public</span> <span class="keyword">void</span> <span class="title">sayName</span>() {  
+        System.out.println(<span class="string">"I am LiLei"</span>);  
+    }  
+}
+</pre></td></tr></table></figure>
+
+
+<p>编译并命名成Person.class.new.<br>实现ClassFileTransformer接口</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+</pre></td><td class="code"><pre><span class="keyword">package</span> instrumentexample;  
+  
+<span class="keyword">import</span> java.io.File;  
+<span class="keyword">import</span> java.io.FileInputStream;  
+<span class="keyword">import</span> java.io.InputStream;  
+<span class="keyword">import</span> java.lang.instrument.ClassFileTransformer;  
+<span class="keyword">import</span> java.lang.instrument.IllegalClassFormatException;  
+<span class="keyword">import</span> java.security.ProtectionDomain;  
+  
+<span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">MethodTransformer</span> <span class="keyword">implements</span> <span class="title">ClassFileTransformer</span> {</span>  
+  
+    <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">final</span> String newClassFilePath = <span class="string">"Person.class.new"</span>;  
+  
+    <span class="comment">// 从新class文件中读取字节码  </span>
+    <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">byte</span>[] <span class="title">readBytesFromFile</span>(String fileName) {  
+        <span class="keyword">try</span> {  
+            File file = <span class="keyword">new</span> File(fileName);  
+            InputStream is = <span class="keyword">new</span> FileInputStream(file);  
+            <span class="keyword">byte</span>[] bytes = <span class="keyword">new</span> <span class="keyword">byte</span>[(<span class="keyword">int</span>) file.length()];  
+            is.read(bytes);  
+            is.close();  
+            <span class="keyword">return</span> bytes;  
+        } <span class="keyword">catch</span> (Exception e) {  
+            <span class="keyword">return</span> <span class="keyword">null</span>;  
+        }  
+    }  
+  
+    <span class="comment">// 实现接口,class字节码修改发生的地方  </span>
+    <span class="keyword">public</span> <span class="keyword">byte</span>[] <span class="title">transform</span>(ClassLoader l, String className, Class&lt;?&gt; c,  
+            ProtectionDomain pd, <span class="keyword">byte</span>[] b) <span class="keyword">throws</span> IllegalClassFormatException {  
+        <span class="comment">// 如果不是要修改的类,直接返回null  </span>
+        <span class="keyword">if</span> (!className.equals(<span class="string">"instrumentexample/Person"</span>)) {  
+            <span class="keyword">return</span> <span class="keyword">null</span>;  
+        }  
+        <span class="keyword">return</span> readBytesFromFile(newClassFilePath);  
+    }  
+}
+</pre></td></tr></table></figure>
+
+<p>再在Agent里面添加该MethodTransformer</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre>1
+2
+3
+4
+5
+6
+7
+8
+</pre></td><td class="code"><pre><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">PremainModifyClass</span> {</span>  
+  
+    <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">premain</span>(String agentArgs, Instrumentation inst)  
+            <span class="keyword">throws</span> ClassNotFoundException, UnmodifiableClassException {  
+        inst.addTransformer(<span class="keyword">new</span> MethodTransformer());  
+    }  
+  
+}
+</pre></td></tr></table></figure>
+
+<p>PremainModifyClass和MethodTransformer打包成agent.jar,执行跟例子1一样.</p>
+<p>java6引入的新特性:JVM启动后动态 instrument、本地代码（native code）instrument，以及动态改变 classpath.</p>
+<p>JVM启动后动态 instrument:在虚拟机初始化完成后(绝大部分的类库都已经被加载完毕),通过Java Tool API 中的 attach 方式,在运行过程中动态的实现instrumentation.</p>
+<p>public static void agentmain (String agentArgs, Instrumentation inst);          [1]<br>public static void agentmain (String agentArgs);              [2]<br>和premain()类似.</p>
+<p>例子3:</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+</pre></td><td class="code"><pre><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">Agentmain</span> {</span>  
+  
+    <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">agentmain</span>(String agentArgs, Instrumentation inst) {  
+        Class[] classes = inst.getAllLoadedClasses();  
+        <span class="keyword">for</span> (Class classstr : classes) {  
+            System.out.println(<span class="string">"Class:"</span> + classstr.getName() + <span class="string">";ClassLoader:"</span>  
+                    + classstr.getClassLoader());  
+        }  
+    }  
+}
+</pre></td></tr></table></figure>
+
+
+
+<figure class="highlight java"><table><tr><td class="gutter"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9
+</pre></td><td class="code"><pre><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">LoadAgentMain</span> {</span>  
+  
+    <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">main</span>(String[] args) <span class="keyword">throws</span> AttachNotSupportedException,  
+            IOException, AgentLoadException, AgentInitializationException {  
+        <span class="comment">// args[0]为JVM实例的pid,args[1]为agent jar的路径  </span>
+        VirtualMachine vm = VirtualMachine.attach(args[<span class="number">0</span>]);  
+        vm.loadAgent(args[<span class="number">1</span>]);  
+    }  
+}
+</pre></td></tr></table></figure>
+
+
+
+<p>修改例子1:</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9
+</pre></td><td class="code"><pre><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">MainClass</span> {</span>  
+  
+    <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">main</span>(String[] args) <span class="keyword">throws</span> InterruptedException {  
+        Person person = <span class="keyword">new</span> Person();  
+        <span class="keyword">while</span> (<span class="number">0</span> &lt; <span class="number">1</span>) {  
+  
+        }  
+    }  
+}
+</pre></td></tr></table></figure>
+
+<p>jps命令行得到MainClass的pid, 打包AgentMain为agent.jar,修改Manifest文件<br>Agent-Class: instrumentexample.Agentmain</p>
+<figure class="highlight"><table><tr><td class="gutter"><pre>1
+</pre></td><td class="code"><pre><span class="tag">java</span> <span class="tag">-javaagent</span><span class="pseudo">:agent</span><span class="class">.jar</span> <span class="tag">MainClass</span> <span class="tag">pid</span> <span class="tag">path</span>
+</pre></td></tr></table></figure>
+
+
+<p>从打印出来的结果可以看到,MainClass和Person类都已经被AppClassLoader加载完成了. 这个就是premain()方式和agentmain()方式的区别.一个是在JVM实例启动前执行instrumentation,一个是在启动后执行instrumentation.<br>如果在agentmain()里面改变字节码,就实现了运行时的instrumentation.</p>
+<p>运行时改变 BootClassPath/SystemClassPath<br>上面我们改变的都是被AppClasssLoader加载的class,如果要改变BootstrapClassLoader加载的class呢?<br>可以设置一个虚拟机运行时的 boot class 加载路径（-Xbootclasspath）和 system class（-cp）加载路径.当然，我们在运行之后无法替换它。然而，我们也许有时候要需要把某些 jar 加载到 bootclasspath 之中，而我们无法应用上述两个方法。在 Java SE 6 之中,可以实现.premain/agantmain 函数里面通过 appendToBootstrapClassLoaderSearch或 appendToSystemClassLoaderSearch 来动态添加ClassLoader的加载路径.( 虚拟机的独特 ClassLoader 的工作方式，它会记载解析结果。比如，我们曾经要求读入某个类 someclass，但是失败了，ClassLoader 会记得这一点。即使我们在后面动态地加入了某一个 jar，含有这个类，ClassLoader 依然会认为我们无法解析这个类，与上次出错的相同的错误会被报告。 )</p>
+<h4 id="文献引用:">文献引用:</h4>
+<p><a href="http://www.ibm.com/developerworks/cn/java/j-lo-jse61/index.html" target="_blank">Java SE 6 新特性:Instrumentation新功能</a></p>
+]]></content>
+    <summary type="html"><![CDATA[<p>java.lang.instrument是java 5开始引入的,它把 Java 的 instrument 功能从本地代码中解放出来，使之可以用 Java 代码的方式解决问题。使用 Instrumentation，开发者可以构建一个独立于应用程序的代理程序（Agent），用来监测和协助运行在 JVM 上的程序，甚至能够替换和修改某些类的定义.</p>
+<p>Java5的特性:运行前利用命令行参数或者系统参数来设置代理类，虚拟机在初始化之时（在绝大多数的 Java 类库被载入之前），instrumentation 的设置已经启动，并在虚拟机中设置了回调函数，检测特定类的加载情况，并根据设置完全特定功能.<br>]]></summary>
+    
+      <category term="性能优化" scheme="www.itcamel.com/tags/%E6%80%A7%E8%83%BD%E4%BC%98%E5%8C%96/"/>
+    
+      <category term="JVM" scheme="www.itcamel.com/tags/JVM/"/>
+    
+      <category term="杂谈" scheme="www.itcamel.com/tags/%E6%9D%82%E8%B0%88/"/>
+    
+      <category term="虚拟机" scheme="www.itcamel.com/tags/%E8%99%9A%E6%8B%9F%E6%9C%BA/"/>
+    
+      <category term="Java基础" scheme="www.itcamel.com/categories/Java%E5%9F%BA%E7%A1%80/"/>
+    
+  </entry>
+  
+  <entry>
+    <title><![CDATA[虚拟机stack全分析]]></title>
+    <link href="www.itcamel.com/2012/09/08/%E8%99%9A%E6%8B%9F%E6%9C%BAstack%E5%85%A8%E5%88%86%E6%9E%90/"/>
+    <id>www.itcamel.com/2012/09/08/虚拟机stack全分析/</id>
+    <published>2012-09-08T13:48:01.000Z</published>
+    <updated>2014-06-16T14:29:29.000Z</updated>
+    <content type="html"><![CDATA[<p>通过jps -lv 获取到本地的一个JVM实例进程。再通过jstack pid  &gt; thread.txt ，把stack trace输出到thread.txt文件中。</p>
+<figure class="highlight"><table><tr><td class="gutter"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+61
+62
+63
+64
+65
+66
+67
+68
+69
+70
+71
+72
+73
+74
+75
+76
+77
+78
+79
+80
+81
+82
+83
+</pre></td><td class="code"><pre><span class="number">2012</span>-<span class="number">08</span>-<span class="number">28</span> <span class="number">23</span>:<span class="number">16</span>:<span class="number">39</span>  
+Full thread dump OpenJDK Client VM (<span class="number">19.0</span>-b09 mixed mode, sharing):  
+  
+<span class="string">"Attach Listener"</span> daemon prio=<span class="number">10</span> tid=<span class="number">0xb3da5400</span> nid=<span class="number">0x13ea</span> waiting on condition [<span class="number">0x00000000</span>]  
+   java<span class="preprocessor">.lang</span><span class="preprocessor">.Thread</span><span class="preprocessor">.State</span>: RUNNABLE  
+  
+<span class="string">"Worker-15"</span> prio=<span class="number">10</span> tid=<span class="number">0x09b7b400</span> nid=<span class="number">0x12f2</span> <span class="keyword">in</span> Object<span class="preprocessor">.wait</span>() [<span class="number">0xb30f9000</span>]  
+   java<span class="preprocessor">.lang</span><span class="preprocessor">.Thread</span><span class="preprocessor">.State</span>: TIMED_WAITING (on object monitor)  
+    at java<span class="preprocessor">.lang</span><span class="preprocessor">.Object</span><span class="preprocessor">.wait</span>(Native Method)  
+    at org<span class="preprocessor">.eclipse</span><span class="preprocessor">.core</span><span class="preprocessor">.internal</span><span class="preprocessor">.jobs</span><span class="preprocessor">.WorkerPool</span><span class="preprocessor">.sleep</span>(WorkerPool<span class="preprocessor">.java</span>:<span class="number">188</span>)  
+    - locked &lt;<span class="number">0x6e5f87c0</span>&gt; (a org<span class="preprocessor">.eclipse</span><span class="preprocessor">.core</span><span class="preprocessor">.internal</span><span class="preprocessor">.jobs</span><span class="preprocessor">.WorkerPool</span>)  
+    at org<span class="preprocessor">.eclipse</span><span class="preprocessor">.core</span><span class="preprocessor">.internal</span><span class="preprocessor">.jobs</span><span class="preprocessor">.WorkerPool</span><span class="preprocessor">.startJob</span>(WorkerPool<span class="preprocessor">.java</span>:<span class="number">220</span>)  
+    at org<span class="preprocessor">.eclipse</span><span class="preprocessor">.core</span><span class="preprocessor">.internal</span><span class="preprocessor">.jobs</span><span class="preprocessor">.Worker</span><span class="preprocessor">.run</span>(Worker<span class="preprocessor">.java</span>:<span class="number">50</span>)  
+  
+<span class="string">"Worker-12"</span> prio=<span class="number">10</span> tid=<span class="number">0x09910c00</span> nid=<span class="number">0x12a0</span> <span class="keyword">in</span> Object<span class="preprocessor">.wait</span>() [<span class="number">0xb4026000</span>]  
+   java<span class="preprocessor">.lang</span><span class="preprocessor">.Thread</span><span class="preprocessor">.State</span>: TIMED_WAITING (on object monitor)  
+    at java<span class="preprocessor">.lang</span><span class="preprocessor">.Object</span><span class="preprocessor">.wait</span>(Native Method)  
+    at org<span class="preprocessor">.eclipse</span><span class="preprocessor">.core</span><span class="preprocessor">.internal</span><span class="preprocessor">.jobs</span><span class="preprocessor">.WorkerPool</span><span class="preprocessor">.sleep</span>(WorkerPool<span class="preprocessor">.java</span>:<span class="number">188</span>)  
+    - locked &lt;<span class="number">0x6e5f87c0</span>&gt; (a org<span class="preprocessor">.eclipse</span><span class="preprocessor">.core</span><span class="preprocessor">.internal</span><span class="preprocessor">.jobs</span><span class="preprocessor">.WorkerPool</span>)  
+    at org<span class="preprocessor">.eclipse</span><span class="preprocessor">.core</span><span class="preprocessor">.internal</span><span class="preprocessor">.jobs</span><span class="preprocessor">.WorkerPool</span><span class="preprocessor">.startJob</span>(WorkerPool<span class="preprocessor">.java</span>:<span class="number">220</span>)  
+    at org<span class="preprocessor">.eclipse</span><span class="preprocessor">.core</span><span class="preprocessor">.internal</span><span class="preprocessor">.jobs</span><span class="preprocessor">.Worker</span><span class="preprocessor">.run</span>(Worker<span class="preprocessor">.java</span>:<span class="number">50</span>)  
+  
+.......省略  
+  
+<span class="string">"Low Memory Detector"</span> daemon prio=<span class="number">10</span> tid=<span class="number">0x097eb000</span> nid=<span class="number">0xa9f</span> runnable [<span class="number">0x00000000</span>]  
+   java<span class="preprocessor">.lang</span><span class="preprocessor">.Thread</span><span class="preprocessor">.State</span>: RUNNABLE  
+  
+<span class="string">"CompilerThread0"</span> daemon prio=<span class="number">10</span> tid=<span class="number">0x097e9000</span> nid=<span class="number">0xa9e</span> waiting on condition [<span class="number">0x00000000</span>]  
+   java<span class="preprocessor">.lang</span><span class="preprocessor">.Thread</span><span class="preprocessor">.State</span>: RUNNABLE  
+  
+<span class="string">"Signal Dispatcher"</span> daemon prio=<span class="number">10</span> tid=<span class="number">0x097e7400</span> nid=<span class="number">0xa9d</span> runnable [<span class="number">0x00000000</span>]  
+   java<span class="preprocessor">.lang</span><span class="preprocessor">.Thread</span><span class="preprocessor">.State</span>: RUNNABLE  
+  
+<span class="string">"Finalizer"</span> daemon prio=<span class="number">10</span> tid=<span class="number">0x097e4000</span> nid=<span class="number">0xa9c</span> <span class="keyword">in</span> Object<span class="preprocessor">.wait</span>() [<span class="number">0xb4dd1000</span>]  
+   java<span class="preprocessor">.lang</span><span class="preprocessor">.Thread</span><span class="preprocessor">.State</span>: WAITING (on object monitor)  
+    at java<span class="preprocessor">.lang</span><span class="preprocessor">.Object</span><span class="preprocessor">.wait</span>(Native Method)  
+    at java<span class="preprocessor">.lang</span><span class="preprocessor">.ref</span><span class="preprocessor">.ReferenceQueue</span><span class="preprocessor">.remove</span>(ReferenceQueue<span class="preprocessor">.java</span>:<span class="number">133</span>)  
+    - locked &lt;<span class="number">0x6e2e02f8</span>&gt; (a java<span class="preprocessor">.lang</span><span class="preprocessor">.ref</span><span class="preprocessor">.ReferenceQueue</span>$Lock)  
+    at java<span class="preprocessor">.lang</span><span class="preprocessor">.ref</span><span class="preprocessor">.ReferenceQueue</span><span class="preprocessor">.remove</span>(ReferenceQueue<span class="preprocessor">.java</span>:<span class="number">149</span>)  
+    at java<span class="preprocessor">.lang</span><span class="preprocessor">.ref</span><span class="preprocessor">.Finalizer</span>$FinalizerThread<span class="preprocessor">.run</span>(Finalizer<span class="preprocessor">.java</span>:<span class="number">177</span>)  
+  
+<span class="string">"Reference Handler"</span> daemon prio=<span class="number">10</span> tid=<span class="number">0x097df400</span> nid=<span class="number">0xa9b</span> <span class="keyword">in</span> Object<span class="preprocessor">.wait</span>() [<span class="number">0xb4e22000</span>]  
+   java<span class="preprocessor">.lang</span><span class="preprocessor">.Thread</span><span class="preprocessor">.State</span>: WAITING (on object monitor)  
+    at java<span class="preprocessor">.lang</span><span class="preprocessor">.Object</span><span class="preprocessor">.wait</span>(Native Method)  
+    at java<span class="preprocessor">.lang</span><span class="preprocessor">.Object</span><span class="preprocessor">.wait</span>(Object<span class="preprocessor">.java</span>:<span class="number">502</span>)  
+    at java<span class="preprocessor">.lang</span><span class="preprocessor">.ref</span><span class="preprocessor">.Reference</span>$ReferenceHandler<span class="preprocessor">.run</span>(Reference<span class="preprocessor">.java</span>:<span class="number">133</span>)  
+    - locked &lt;<span class="number">0x6e2e0098</span>&gt; (a java<span class="preprocessor">.lang</span><span class="preprocessor">.ref</span><span class="preprocessor">.Reference</span>$Lock)  
+  
+<span class="string">"main"</span> prio=<span class="number">10</span> tid=<span class="number">0x097b0400</span> nid=<span class="number">0xa99</span> runnable [<span class="number">0xbf8b9000</span>]  
+   java<span class="preprocessor">.lang</span><span class="preprocessor">.Thread</span><span class="preprocessor">.State</span>: RUNNABLE  
+    at org<span class="preprocessor">.eclipse</span><span class="preprocessor">.swt</span><span class="preprocessor">.internal</span><span class="preprocessor">.gtk</span><span class="preprocessor">.OS</span><span class="preprocessor">.Call</span>(Native Method)  
+    at org<span class="preprocessor">.eclipse</span><span class="preprocessor">.swt</span><span class="preprocessor">.widgets</span><span class="preprocessor">.Display</span><span class="preprocessor">.sleep</span>(Display<span class="preprocessor">.java</span>:<span class="number">4069</span>)  
+    at org<span class="preprocessor">.eclipse</span><span class="preprocessor">.ui</span><span class="preprocessor">.application</span><span class="preprocessor">.WorkbenchAdvisor</span><span class="preprocessor">.eventLoopIdle</span>(WorkbenchAdvisor<span class="preprocessor">.java</span>:<span class="number">364</span>)  
+    at org<span class="preprocessor">.eclipse</span><span class="preprocessor">.ui</span><span class="preprocessor">.internal</span><span class="preprocessor">.ide</span><span class="preprocessor">.application</span><span class="preprocessor">.IDEWorkbenchAdvisor</span><span class="preprocessor">.eventLoopIdle</span>(IDEWorkbenchAdvisor<span class="preprocessor">.java</span>:<span class="number">917</span>)  
+    at org<span class="preprocessor">.eclipse</span><span class="preprocessor">.ui</span><span class="preprocessor">.internal</span><span class="preprocessor">.Workbench</span><span class="preprocessor">.runEventLoop</span>(Workbench<span class="preprocessor">.java</span>:<span class="number">2697</span>)  
+    at org<span class="preprocessor">.eclipse</span><span class="preprocessor">.ui</span><span class="preprocessor">.internal</span><span class="preprocessor">.Workbench</span><span class="preprocessor">.runUI</span>(Workbench<span class="preprocessor">.java</span>:<span class="number">2660</span>)  
+    at org<span class="preprocessor">.eclipse</span><span class="preprocessor">.ui</span><span class="preprocessor">.internal</span><span class="preprocessor">.Workbench</span><span class="preprocessor">.access</span>$4(Workbench<span class="preprocessor">.java</span>:<span class="number">2494</span>)  
+    at org<span class="preprocessor">.eclipse</span><span class="preprocessor">.ui</span><span class="preprocessor">.internal</span><span class="preprocessor">.Workbench</span>$7<span class="preprocessor">.run</span>(Workbench<span class="preprocessor">.java</span>:<span class="number">674</span>)  
+    at org<span class="preprocessor">.eclipse</span><span class="preprocessor">.core</span><span class="preprocessor">.databinding</span><span class="preprocessor">.observable</span><span class="preprocessor">.Realm</span><span class="preprocessor">.runWithDefault</span>(Realm<span class="preprocessor">.java</span>:<span class="number">332</span>)  
+    at org<span class="preprocessor">.eclipse</span><span class="preprocessor">.ui</span><span class="preprocessor">.internal</span><span class="preprocessor">.Workbench</span><span class="preprocessor">.createAndRunWorkbench</span>(Workbench<span class="preprocessor">.java</span>:<span class="number">667</span>)  
+    at org<span class="preprocessor">.eclipse</span><span class="preprocessor">.ui</span><span class="preprocessor">.PlatformUI</span><span class="preprocessor">.createAndRunWorkbench</span>(PlatformUI<span class="preprocessor">.java</span>:<span class="number">149</span>)  
+    at org<span class="preprocessor">.eclipse</span><span class="preprocessor">.ui</span><span class="preprocessor">.internal</span><span class="preprocessor">.ide</span><span class="preprocessor">.application</span><span class="preprocessor">.IDEApplication</span><span class="preprocessor">.start</span>(IDEApplication<span class="preprocessor">.java</span>:<span class="number">123</span>)  
+    at org<span class="preprocessor">.eclipse</span><span class="preprocessor">.equinox</span><span class="preprocessor">.internal</span><span class="preprocessor">.app</span><span class="preprocessor">.EclipseAppHandle</span><span class="preprocessor">.run</span>(EclipseAppHandle<span class="preprocessor">.java</span>:<span class="number">196</span>)  
+    at org<span class="preprocessor">.eclipse</span><span class="preprocessor">.core</span><span class="preprocessor">.runtime</span><span class="preprocessor">.internal</span><span class="preprocessor">.adaptor</span><span class="preprocessor">.EclipseAppLauncher</span><span class="preprocessor">.runApplication</span>(EclipseAppLauncher<span class="preprocessor">.java</span>:<span class="number">110</span>)  
+    at org<span class="preprocessor">.eclipse</span><span class="preprocessor">.core</span><span class="preprocessor">.runtime</span><span class="preprocessor">.internal</span><span class="preprocessor">.adaptor</span><span class="preprocessor">.EclipseAppLauncher</span><span class="preprocessor">.start</span>(EclipseAppLauncher<span class="preprocessor">.java</span>:<span class="number">79</span>)  
+    at org<span class="preprocessor">.eclipse</span><span class="preprocessor">.core</span><span class="preprocessor">.runtime</span><span class="preprocessor">.adaptor</span><span class="preprocessor">.EclipseStarter</span><span class="preprocessor">.run</span>(EclipseStarter<span class="preprocessor">.java</span>:<span class="number">344</span>)  
+    at org<span class="preprocessor">.eclipse</span><span class="preprocessor">.core</span><span class="preprocessor">.runtime</span><span class="preprocessor">.adaptor</span><span class="preprocessor">.EclipseStarter</span><span class="preprocessor">.run</span>(EclipseStarter<span class="preprocessor">.java</span>:<span class="number">179</span>)  
+    at sun<span class="preprocessor">.reflect</span><span class="preprocessor">.NativeMethodAccessorImpl</span><span class="preprocessor">.invoke</span>0(Native Method)  
+    at sun<span class="preprocessor">.reflect</span><span class="preprocessor">.NativeMethodAccessorImpl</span><span class="preprocessor">.invoke</span>(NativeMethodAccessorImpl<span class="preprocessor">.java</span>:<span class="number">57</span>)  
+    at sun<span class="preprocessor">.reflect</span><span class="preprocessor">.DelegatingMethodAccessorImpl</span><span class="preprocessor">.invoke</span>(DelegatingMethodAccessorImpl<span class="preprocessor">.java</span>:<span class="number">43</span>)  
+    at java<span class="preprocessor">.lang</span><span class="preprocessor">.reflect</span><span class="preprocessor">.Method</span><span class="preprocessor">.invoke</span>(Method<span class="preprocessor">.java</span>:<span class="number">616</span>)  
+    at org<span class="preprocessor">.eclipse</span><span class="preprocessor">.equinox</span><span class="preprocessor">.launcher</span><span class="preprocessor">.Main</span><span class="preprocessor">.invokeFramework</span>(Main<span class="preprocessor">.java</span>:<span class="number">622</span>)  
+    at org<span class="preprocessor">.eclipse</span><span class="preprocessor">.equinox</span><span class="preprocessor">.launcher</span><span class="preprocessor">.Main</span><span class="preprocessor">.basicRun</span>(Main<span class="preprocessor">.java</span>:<span class="number">577</span>)  
+    at org<span class="preprocessor">.eclipse</span><span class="preprocessor">.equinox</span><span class="preprocessor">.launcher</span><span class="preprocessor">.Main</span><span class="preprocessor">.run</span>(Main<span class="preprocessor">.java</span>:<span class="number">1410</span>)  
+  
+<span class="string">"VM Thread"</span> prio=<span class="number">10</span> tid=<span class="number">0x097dd800</span> nid=<span class="number">0xa9a</span> runnable   
+<span class="string">"GC task thread#0 (ParallelGC)"</span> prio=<span class="number">10</span> tid=<span class="number">0x08726800</span> nid=<span class="number">0x1e30</span> runnable  
+  
+<span class="string">"GC task thread#1 (ParallelGC)"</span> prio=<span class="number">10</span> tid=<span class="number">0x08727c00</span> nid=<span class="number">0x1e31</span> runnable  
+  
+<span class="string">"VM Periodic Task Thread"</span> prio=<span class="number">10</span> tid=<span class="number">0x097ed400</span> nid=<span class="number">0xaa0</span> waiting on condition   
+  
+JNI global references: <span class="number">2131</span>
+</pre></td></tr></table></figure>
+
+<p>上面的stack trace一共可以拆解成5个部分。</p>
+<h4 id="第一部分:_Full_thread_dump_identifier">第一部分: Full thread dump identifier</h4>
+<figure class="highlight"><table><tr><td class="gutter"><pre>1
+2
+</pre></td><td class="code"><pre><span class="number">2012</span><span class="subst">-</span><span class="number">08</span><span class="subst">-</span><span class="number">28</span> <span class="number">23</span>:<span class="number">16</span>:<span class="number">39</span>  
+<span class="literal">Full</span> <span class="keyword">thread</span> dump OpenJDK Client VM (<span class="number">19.0</span><span class="attribute">-b09</span> mixed mode, sharing):
+</pre></td></tr></table></figure>
+
+<p>可以看到dump时间，虚拟机的信息。</p>
+<h4 id="第二部分:_Java_EE_middleware,_third_party_&amp;_custom_application_Threads">第二部分: Java EE middleware, third party &amp; custom application Threads</h4>
+<figure class="highlight"><table><tr><td class="gutter"><pre>1
+2
+3
+4
+5
+6
+7
+</pre></td><td class="code"><pre><span class="string">"Worker-15"</span> prio=<span class="number">10</span> tid=<span class="number">0x09b7b400</span> nid=<span class="number">0x12f2</span> <span class="keyword">in</span> Object<span class="preprocessor">.wait</span>() [<span class="number">0xb30f9000</span>]    
+   java<span class="preprocessor">.lang</span><span class="preprocessor">.Thread</span><span class="preprocessor">.State</span>: TIMED_WAITING (on object monitor)    
+    at java<span class="preprocessor">.lang</span><span class="preprocessor">.Object</span><span class="preprocessor">.wait</span>(Native Method)    
+    at org<span class="preprocessor">.eclipse</span><span class="preprocessor">.core</span><span class="preprocessor">.internal</span><span class="preprocessor">.jobs</span><span class="preprocessor">.WorkerPool</span><span class="preprocessor">.sleep</span>(WorkerPool<span class="preprocessor">.java</span>:<span class="number">188</span>)    
+    - locked &lt;<span class="number">0x6e5f87c0</span>&gt; (a org<span class="preprocessor">.eclipse</span><span class="preprocessor">.core</span><span class="preprocessor">.internal</span><span class="preprocessor">.jobs</span><span class="preprocessor">.WorkerPool</span>)    
+    at org<span class="preprocessor">.eclipse</span><span class="preprocessor">.core</span><span class="preprocessor">.internal</span><span class="preprocessor">.jobs</span><span class="preprocessor">.WorkerPool</span><span class="preprocessor">.startJob</span>(WorkerPool<span class="preprocessor">.java</span>:<span class="number">220</span>)    
+    at org<span class="preprocessor">.eclipse</span><span class="preprocessor">.core</span><span class="preprocessor">.internal</span><span class="preprocessor">.jobs</span><span class="preprocessor">.Worker</span><span class="preprocessor">.run</span>(Worker<span class="preprocessor">.java</span>:<span class="number">50</span>)
+</pre></td></tr></table></figure>
+
+
+<p>此处是我们最为关心的地方，也是通过stack trace查找问题的地方,每个item的具体含义是<br>-Thread name: “Worker-15”<br>-线程优先级： prio=10<br>-java线程的identifier：tid=0x09b7b400<br>-native线程的identifier: nid=0x12f2<br>-线程的状态： in Object.wait()  java.lang.Thread.State: TIMED_WAITING (on object monitor)<br>-线程栈起始地址：[0xb30f9000]  </p>
+<h5 id="Java线程和Native线程，也就是tid和nid的区别?">Java线程和Native线程，也就是tid和nid的区别?</h5>
+<p>VM是加载并执行字节码的机器，这个处理不对应具体硬件，它完全由软件来实现。虚拟机并不是直接跑在宿主的cpu上，中间还隔着宿主的操作系统。</p>
+<p>虚拟机的职责是：翻译字节码，把它翻译成一系列的动作（内存操作）和系统调用（比如输入输出）。举个例子：当在java里请求与某台远程机器建立socket连接时，java虚拟机本身是不能完成这一工作的（协议栈是在操作系统内实现的），所以它需要系统调用。要明白这个，还需要知道JRE和JVM的关系。JRE是JVM的环境，一个应用程序就是一个JVM实例。一个机器上一般同时只有一个JRE环境，但是可以同时有多个JVM实例。不同的操作系统和CPU架构有不同的JRE。JRE包含了最基本的类库，当然包括和操作系统打交道的Native库，比如windows下的dll文件，linux下的so文件。JVM实例解析字节码的成JVM中的指令集，再通过Native方法进行操作系统层面的系统调用。下面的图能比较清楚的说明问题。</p>
+<h5 id="JVM线程如何创建">JVM线程如何创建</h5>
+<p>当然是通过Native库的 native方法。JVM的线程最终是通过操作系统的线程来完成系统调用的。针对Java开发者来说，发号施令的是JVM 线程，具体干藏活累活的却是操作系统线程。不同操作系统上，JVM创建本地线程依赖的native库也不同。具体可参考下面的的文章。<a href="http://jackyhongvip.iteye.com/blog/1338610" target="_blank">http://jackyhongvip.iteye.com/blog/1338610</a></p>
+<h5 id="JVM线程状态">JVM线程状态</h5>
+<p>状态有Runnable、Wait on condition、Waiting for monitor entry 和 in Object.wait()。<br>Runnable：不解释<br>Wait on condition:该状态出现在线程等待某个条件的发生。具体是什么原因，可以结合 stacktrace来分析。最常见的情况是线程在等待网络的读写。如果网络数据没准备好，线程就等待在那里。另外一种出现 Wait on condition的常见情况是该线程在 sleep，等待 sleep的时间到了时候，将被唤醒。<br>Waiting for monitor entry 和 in Object.wait()：这两种情况在多线程的情况下经常出现。Java是通过Monitor来实现线程互斥和协作（有些把Monitor直译成锁，我认为不妥，不是还有Lock嘛）。具体Monitor的深入理解见 <a href="http://www.cnblogs.com/tomsheep/archive/2010/06/09/1754419.html" target="_blank">http://www.cnblogs.com/tomsheep/archive/2010/06/09/1754419.html</a><br>但是可以理解成Monitor是一个对象或者class所拥有的锁，每个对象和class有且仅有一个。见下图.</p>
+<p>每个 Monitor在某个时刻，只能被一个线程拥有，该线程就是 “Active Thread”，而其它线程都是 “Waiting Thread”，分别在两个队列 “ Entry Set”和 “Wait Set”里面等候。<br>在 “ Entry Set”里面的线程都等待拿到Monitor，拿到了线程就成为了Runnable线程，否则就会一直处于处于 “waiting for monitor entry”。一段代码作为例子</p>
+<figure class="highlight"><table><tr><td class="gutter"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+</pre></td><td class="code"><pre><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">MyThread</span> <span class="keyword">implements</span> <span class="title">Runnable</span>{</span>    
+  
+     <span class="keyword">public</span> <span class="keyword">void</span> <span class="title">run</span>() {    
+         <span class="keyword">synchronized</span>(<span class="keyword">this</span>) {    
+              <span class="keyword">for</span> (<span class="keyword">int</span> i = <span class="number">0</span>; i &lt; <span class="number">1</span>; i--) {    
+                   System.out.println(Thread.currentThread().getName() + <span class="string">" synchronized loop "</span> + i);    
+              }    
+         }    
+    }    
+    <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">main</span>(String[] args) {    
+        MyThread t1 = <span class="keyword">new</span> MyThread();    
+         Thread ta = <span class="keyword">new</span> Thread(t1, <span class="string">"A"</span>);    
+         Thread tb = <span class="keyword">new</span> Thread(t1, <span class="string">"B"</span>);    
+         ta.start();    
+         tb.start();    
+    }   
+  
+}
+</pre></td></tr></table></figure>
+
+<p>大家一看就知道，B线程肯定是“千年老二“，永远拿不到Monitor了。<br><code>对应的stack:</code></p>
+<figure class="highlight"><table><tr><td class="gutter"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+</pre></td><td class="code"><pre><span class="string">"B"</span> prio=<span class="number">10</span> tid=<span class="number">0x0969a000</span> nid=<span class="number">0x11d6</span> waiting for monitor entry [<span class="number">0x8bb22000</span>]  
+   java<span class="preprocessor">.lang</span><span class="preprocessor">.Thread</span><span class="preprocessor">.State</span>: BLOCKED (on object monitor)  
+    at org<span class="preprocessor">.marshal</span><span class="preprocessor">.MyThread</span><span class="preprocessor">.run</span>(MyThread<span class="preprocessor">.java</span>:<span class="number">7</span>)  
+    - waiting to lock &lt;<span class="number">0x94757078</span>&gt; (a org<span class="preprocessor">.marshal</span><span class="preprocessor">.MyThread</span>)  
+    at java<span class="preprocessor">.lang</span><span class="preprocessor">.Thread</span><span class="preprocessor">.run</span>(Thread<span class="preprocessor">.java</span>:<span class="number">636</span>)  
+  
+<span class="string">"A"</span> prio=<span class="number">10</span> tid=<span class="number">0x09698800</span> nid=<span class="number">0x11d5</span> runnable [<span class="number">0x8bb73000</span>]  
+   java<span class="preprocessor">.lang</span><span class="preprocessor">.Thread</span><span class="preprocessor">.State</span>: RUNNABLE  
+    at java<span class="preprocessor">.io</span><span class="preprocessor">.FileOutputStream</span><span class="preprocessor">.writeBytes</span>(Native Method)  
+    at java<span class="preprocessor">.io</span><span class="preprocessor">.FileOutputStream</span><span class="preprocessor">.write</span>(FileOutputStream<span class="preprocessor">.java</span>:<span class="number">297</span>)  
+    at java<span class="preprocessor">.io</span><span class="preprocessor">.BufferedOutputStream</span><span class="preprocessor">.flushBuffer</span>(BufferedOutputStream<span class="preprocessor">.java</span>:<span class="number">82</span>)  
+    at java<span class="preprocessor">.io</span><span class="preprocessor">.BufferedOutputStream</span><span class="preprocessor">.flush</span>(BufferedOutputStream<span class="preprocessor">.java</span>:<span class="number">140</span>)  
+    - locked &lt;<span class="number">0x947571b0</span>&gt; (a java<span class="preprocessor">.io</span><span class="preprocessor">.BufferedOutputStream</span>)  
+    at java<span class="preprocessor">.io</span><span class="preprocessor">.PrintStream</span><span class="preprocessor">.write</span>(PrintStream<span class="preprocessor">.java</span>:<span class="number">449</span>)  
+    - locked &lt;<span class="number">0x94757190</span>&gt; (a java<span class="preprocessor">.io</span><span class="preprocessor">.PrintStream</span>)  
+    at sun<span class="preprocessor">.nio</span><span class="preprocessor">.cs</span><span class="preprocessor">.StreamEncoder</span><span class="preprocessor">.writeBytes</span>(StreamEncoder<span class="preprocessor">.java</span>:<span class="number">220</span>)  
+    at sun<span class="preprocessor">.nio</span><span class="preprocessor">.cs</span><span class="preprocessor">.StreamEncoder</span><span class="preprocessor">.implFlushBuffer</span>(StreamEncoder<span class="preprocessor">.java</span>:<span class="number">290</span>)  
+    at sun<span class="preprocessor">.nio</span><span class="preprocessor">.cs</span><span class="preprocessor">.StreamEncoder</span><span class="preprocessor">.flushBuffer</span>(StreamEncoder<span class="preprocessor">.java</span>:<span class="number">103</span>)  
+    - locked &lt;<span class="number">0x947572a0</span>&gt; (a java<span class="preprocessor">.io</span><span class="preprocessor">.OutputStreamWriter</span>)  
+    at java<span class="preprocessor">.io</span><span class="preprocessor">.OutputStreamWriter</span><span class="preprocessor">.flushBuffer</span>(OutputStreamWriter<span class="preprocessor">.java</span>:<span class="number">185</span>)  
+    at java<span class="preprocessor">.io</span><span class="preprocessor">.PrintStream</span><span class="preprocessor">.write</span>(PrintStream<span class="preprocessor">.java</span>:<span class="number">494</span>)  
+    - locked &lt;<span class="number">0x94757190</span>&gt; (a java<span class="preprocessor">.io</span><span class="preprocessor">.PrintStream</span>)  
+    at java<span class="preprocessor">.io</span><span class="preprocessor">.PrintStream</span><span class="preprocessor">.print</span>(PrintStream<span class="preprocessor">.java</span>:<span class="number">636</span>)  
+    at java<span class="preprocessor">.io</span><span class="preprocessor">.PrintStream</span><span class="preprocessor">.println</span>(PrintStream<span class="preprocessor">.java</span>:<span class="number">773</span>)  
+    - locked &lt;<span class="number">0x94757190</span>&gt; (a java<span class="preprocessor">.io</span><span class="preprocessor">.PrintStream</span>)  
+    at org<span class="preprocessor">.marshal</span><span class="preprocessor">.MyThread</span><span class="preprocessor">.run</span>(MyThread<span class="preprocessor">.java</span>:<span class="number">8</span>)  
+    - locked &lt;<span class="number">0x94757078</span>&gt; (a org<span class="preprocessor">.marshal</span><span class="preprocessor">.MyThread</span>)  
+    at java<span class="preprocessor">.lang</span><span class="preprocessor">.Thread</span><span class="preprocessor">.run</span>(Thread<span class="preprocessor">.java</span>:<span class="number">636</span>)  
+   &lt;<span class="number">0x94757078</span>&gt; 就是两个线程争夺的Monitor。
+</pre></td></tr></table></figure>
+
+<p>在 “Wait Set”里面的线程都如饥似渴地等待拿到Monitor。他们是怎么进入到“Wait Set”的呢？当一个线程拿到了Monitor，但是在其他资源没有到位的情况下，调用同步锁对象（一般是synchronized()内的对象）的 wait() 方法，放弃了 Monitor，它就进入到了 “Wait Set”队列。只有当其他线程通过notify() 或者 notifyAll()，释放了同步锁后，这个线程才会有机会重新去竞争Monitor。在stack中，它表现的状态是in Object.wait()。<br><code>修改上面的代码</code></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+</pre></td><td class="code"><pre><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">WaitThread</span> <span class="keyword">implements</span> <span class="title">Runnable</span>{</span> 
+<span class="keyword">public</span> <span class="keyword">void</span> <span class="title">run</span>() {    
+      <span class="keyword">synchronized</span>(<span class="keyword">this</span>) {   
+        <span class="keyword">try</span> {  
+        <span class="keyword">this</span>.wait();  
+    } <span class="keyword">catch</span> (InterruptedException e) {  
+        <span class="comment">// TODO Auto-generated catch block  </span>
+        e.printStackTrace();  
+    }              
+      }    
+ }    
+ <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">main</span>(String[] args) {    
+   WaitThread t1 = <span class="keyword">new</span> WaitThread();    
+      Thread ta = <span class="keyword">new</span> Thread(t1, <span class="string">"A"</span>);    
+      Thread tb = <span class="keyword">new</span> Thread(t1, <span class="string">"B"</span>);    
+      ta.start();    
+      tb.start();            
+ }
+</pre></td></tr></table></figure>
+
+<p><code>对应的stack</code></p>
+<figure class="highlight"><table><tr><td class="gutter"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+</pre></td><td class="code"><pre><span class="string">"B"</span> prio=<span class="number">10</span> tid=<span class="number">0x08173000</span> nid=<span class="number">0x1304</span> <span class="keyword">in</span> Object<span class="preprocessor">.wait</span>() [<span class="number">0x8baf2000</span>]  
+   java<span class="preprocessor">.lang</span><span class="preprocessor">.Thread</span><span class="preprocessor">.State</span>: WAITING (on object monitor)  
+    at java<span class="preprocessor">.lang</span><span class="preprocessor">.Object</span><span class="preprocessor">.wait</span>(Native Method)  
+    - waiting on &lt;<span class="number">0xa9cb50e0</span>&gt; (a org<span class="preprocessor">.marshal</span><span class="preprocessor">.WaitThread</span>)  
+    at java<span class="preprocessor">.lang</span><span class="preprocessor">.Object</span><span class="preprocessor">.wait</span>(Object<span class="preprocessor">.java</span>:<span class="number">502</span>)  
+    at org<span class="preprocessor">.marshal</span><span class="preprocessor">.WaitThread</span><span class="preprocessor">.run</span>(WaitThread<span class="preprocessor">.java</span>:<span class="number">8</span>)  
+    - locked &lt;<span class="number">0xa9cb50e0</span>&gt; (a org<span class="preprocessor">.marshal</span><span class="preprocessor">.WaitThread</span>)  
+    at java<span class="preprocessor">.lang</span><span class="preprocessor">.Thread</span><span class="preprocessor">.run</span>(Thread<span class="preprocessor">.java</span>:<span class="number">636</span>)  
+  
+<span class="string">"A"</span> prio=<span class="number">10</span> tid=<span class="number">0x08171c00</span> nid=<span class="number">0x1303</span> <span class="keyword">in</span> Object<span class="preprocessor">.wait</span>() [<span class="number">0x8bb43000</span>]  
+   java<span class="preprocessor">.lang</span><span class="preprocessor">.Thread</span><span class="preprocessor">.State</span>: WAITING (on object monitor)  
+    at java<span class="preprocessor">.lang</span><span class="preprocessor">.Object</span><span class="preprocessor">.wait</span>(Native Method)  
+    - waiting on &lt;<span class="number">0xa9cb50e0</span>&gt; (a org<span class="preprocessor">.marshal</span><span class="preprocessor">.WaitThread</span>)  
+    at java<span class="preprocessor">.lang</span><span class="preprocessor">.Object</span><span class="preprocessor">.wait</span>(Object<span class="preprocessor">.java</span>:<span class="number">502</span>)  
+    at org<span class="preprocessor">.marshal</span><span class="preprocessor">.WaitThread</span><span class="preprocessor">.run</span>(WaitThread<span class="preprocessor">.java</span>:<span class="number">8</span>)  
+    - locked &lt;<span class="number">0xa9cb50e0</span>&gt; (a org<span class="preprocessor">.marshal</span><span class="preprocessor">.WaitThread</span>)  
+    at java<span class="preprocessor">.lang</span><span class="preprocessor">.Thread</span><span class="preprocessor">.run</span>(Thread<span class="preprocessor">.java</span>:<span class="number">636</span>)
+</pre></td></tr></table></figure>
+
+<p>A和B线程都进入了”wait set“。B线程也拿到过这个Monitor，因为A线程释放过了，这也验证上面的话，他们都在等待得而复失的<0xa9cb50e0>。</p>
+<p>基于我们经常讨论到的死锁问题，构造一段代码如下</p>
+<figure class="highlight"><table><tr><td class="gutter"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+</pre></td><td class="code"><pre><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">DeadThread</span> <span class="keyword">implements</span> <span class="title">Runnable</span>{</span>  
+      
+    <span class="keyword">private</span> Object monitor_A = <span class="keyword">new</span> Object();  
+      
+    <span class="keyword">private</span> Object monitor_B = <span class="keyword">new</span> Object();  
+      
+    <span class="keyword">public</span> <span class="keyword">void</span>  <span class="title">method_A</span>(){  
+         <span class="keyword">synchronized</span>(monitor_A) {   
+               <span class="keyword">synchronized</span>(monitor_B) {   
+                   System.out.println(Thread.currentThread().getName()+<span class="string">" invoke method A"</span>);  
+               }                  
+           }          
+    }  
+      
+    <span class="keyword">public</span> <span class="keyword">void</span>  <span class="title">method_B</span>(){  
+         <span class="keyword">synchronized</span>(monitor_B) {   
+               <span class="keyword">synchronized</span>(monitor_A) {   
+                   System.out.println(Thread.currentThread().getName()+<span class="string">" invoke method B"</span>);  
+               }                  
+           }          
+    }     
+  
+    <span class="keyword">public</span> <span class="keyword">void</span> <span class="title">run</span>() {       
+        <span class="keyword">for</span>(<span class="keyword">int</span> i=<span class="number">0</span>;i&lt;<span class="number">1</span>;i--){               
+            method_A();            
+            method_B();                        
+        }              
+    }  
+       
+  <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">main</span>(String[] args) {    
+      DeadThread t1 = <span class="keyword">new</span> DeadThread();    
+       Thread ta = <span class="keyword">new</span> Thread(t1, <span class="string">"A"</span>);    
+       Thread tb = <span class="keyword">new</span> Thread(t1, <span class="string">"B"</span>);    
+    
+       ta.start();    
+       tb.start();   
+  }   
+}
+</pre></td></tr></table></figure>
+
+<p>对应的stack:</p>
+<figure class="highlight"><table><tr><td class="gutter"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+</pre></td><td class="code"><pre><span class="string">"B"</span> prio=<span class="number">10</span> tid=<span class="number">0x0898d000</span> nid=<span class="number">0x269a</span> waiting for monitor entry [<span class="number">0x8baa2000</span>]  
+   java<span class="preprocessor">.lang</span><span class="preprocessor">.Thread</span><span class="preprocessor">.State</span>: BLOCKED (on object monitor)  
+    at org<span class="preprocessor">.marshal</span><span class="preprocessor">.DeadThread</span><span class="preprocessor">.method</span>_A(DeadThread<span class="preprocessor">.java</span>:<span class="number">11</span>)  
+    - waiting to lock &lt;<span class="number">0xaa4d6f88</span>&gt; (a java<span class="preprocessor">.lang</span><span class="preprocessor">.Object</span>)  
+    - locked &lt;<span class="number">0xaa4d6f80</span>&gt; (a java<span class="preprocessor">.lang</span><span class="preprocessor">.Object</span>)  
+    at org<span class="preprocessor">.marshal</span><span class="preprocessor">.DeadThread</span><span class="preprocessor">.run</span>(DeadThread<span class="preprocessor">.java</span>:<span class="number">28</span>)  
+    at java<span class="preprocessor">.lang</span><span class="preprocessor">.Thread</span><span class="preprocessor">.run</span>(Thread<span class="preprocessor">.java</span>:<span class="number">636</span>)  
+  
+<span class="string">"A"</span> prio=<span class="number">10</span> tid=<span class="number">0x0898b800</span> nid=<span class="number">0x2699</span> waiting for monitor entry [<span class="number">0x8baf3000</span>]  
+   java<span class="preprocessor">.lang</span><span class="preprocessor">.Thread</span><span class="preprocessor">.State</span>: BLOCKED (on object monitor)  
+    at org<span class="preprocessor">.marshal</span><span class="preprocessor">.DeadThread</span><span class="preprocessor">.method</span>_B(DeadThread<span class="preprocessor">.java</span>:<span class="number">19</span>)  
+    - waiting to lock &lt;<span class="number">0xaa4d6f80</span>&gt; (a java<span class="preprocessor">.lang</span><span class="preprocessor">.Object</span>)  
+    - locked &lt;<span class="number">0xaa4d6f88</span>&gt; (a java<span class="preprocessor">.lang</span><span class="preprocessor">.Object</span>)  
+    at org<span class="preprocessor">.marshal</span><span class="preprocessor">.DeadThread</span><span class="preprocessor">.run</span>(DeadThread<span class="preprocessor">.java</span>:<span class="number">29</span>)  
+    at java<span class="preprocessor">.lang</span><span class="preprocessor">.Thread</span><span class="preprocessor">.run</span>(Thread<span class="preprocessor">.java</span>:<span class="number">636</span>)  
+ 同时注意到，在stack trace尾部信息
+</pre></td></tr></table></figure>
+
+
+<figure class="highlight"><table><tr><td class="gutter"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+</pre></td><td class="code"><pre>Found one Java-level deadlock:  
+=============================  
+<span class="string">"B"</span>:  
+  waiting to lock monitor <span class="number">0x089615d8</span> (object <span class="number">0xaa4d6f88</span>, a java<span class="preprocessor">.lang</span><span class="preprocessor">.Object</span>),  
+  which is held by <span class="string">"A"</span>  
+<span class="string">"A"</span>:  
+  waiting to lock monitor <span class="number">0x08962258</span> (object <span class="number">0xaa4d6f80</span>, a java<span class="preprocessor">.lang</span><span class="preprocessor">.Object</span>),  
+  which is held by <span class="string">"B"</span>  
+  
+Java stack information for the threads listed above:  
+===================================================  
+<span class="string">"B"</span>:  
+    at org<span class="preprocessor">.marshal</span><span class="preprocessor">.DeadThread</span><span class="preprocessor">.method</span>_A(DeadThread<span class="preprocessor">.java</span>:<span class="number">11</span>)  
+    - waiting to lock &lt;<span class="number">0xaa4d6f88</span>&gt; (a java<span class="preprocessor">.lang</span><span class="preprocessor">.Object</span>)  
+    - locked &lt;<span class="number">0xaa4d6f80</span>&gt; (a java<span class="preprocessor">.lang</span><span class="preprocessor">.Object</span>)  
+    at org<span class="preprocessor">.marshal</span><span class="preprocessor">.DeadThread</span><span class="preprocessor">.run</span>(DeadThread<span class="preprocessor">.java</span>:<span class="number">28</span>)  
+    at java<span class="preprocessor">.lang</span><span class="preprocessor">.Thread</span><span class="preprocessor">.run</span>(Thread<span class="preprocessor">.java</span>:<span class="number">636</span>)  
+<span class="string">"A"</span>:  
+    at org<span class="preprocessor">.marshal</span><span class="preprocessor">.DeadThread</span><span class="preprocessor">.method</span>_B(DeadThread<span class="preprocessor">.java</span>:<span class="number">19</span>)  
+    - waiting to lock &lt;<span class="number">0xaa4d6f80</span>&gt; (a java<span class="preprocessor">.lang</span><span class="preprocessor">.Object</span>)  
+    - locked &lt;<span class="number">0xaa4d6f88</span>&gt; (a java<span class="preprocessor">.lang</span><span class="preprocessor">.Object</span>)  
+    at org<span class="preprocessor">.marshal</span><span class="preprocessor">.DeadThread</span><span class="preprocessor">.run</span>(DeadThread<span class="preprocessor">.java</span>:<span class="number">29</span>)  
+    at java<span class="preprocessor">.lang</span><span class="preprocessor">.Thread</span><span class="preprocessor">.run</span>(Thread<span class="preprocessor">.java</span>:<span class="number">636</span>)  
+  
+Found <span class="number">1</span> deadlock.
+</pre></td></tr></table></figure>
+
+<p>stack中直接报告了Java级别的死锁，够智能吧。</p>
+<h4 id="第三部分：HotSpot_VM_Thread">第三部分：HotSpot VM Thread</h4>
+<figure class="highlight"><table><tr><td class="gutter"><pre>1
+2
+3
+4
+5
+</pre></td><td class="code"><pre><span class="string">"Low Memory Detector"</span> daemon prio=<span class="number">10</span> tid=<span class="number">0x097eb000</span> nid=<span class="number">0xa9f</span> runnable [<span class="number">0x00000000</span>]    
+   java<span class="preprocessor">.lang</span><span class="preprocessor">.Thread</span><span class="preprocessor">.State</span>: RUNNABLE    
+    
+<span class="string">"CompilerThread0"</span> daemon prio=<span class="number">10</span> tid=<span class="number">0x097e9000</span> nid=<span class="number">0xa9e</span> waiting on condition [<span class="number">0x00000000</span>]    
+   java<span class="preprocessor">.lang</span><span class="preprocessor">.Thread</span><span class="preprocessor">.State</span>: RUNNABLE
+</pre></td></tr></table></figure>
+
+
+<p>JVM管理的内部线程，这些内部线程都是来执行native操作的，可以不必太关注。</p>
+<h4 id="第四部分：_HotSpot_GC_Thread">第四部分： HotSpot GC Thread</h4>
+<figure class="highlight"><table><tr><td class="gutter"><pre>1
+2
+3
+</pre></td><td class="code"><pre><span class="string">"GC task thread#0 (ParallelGC)"</span> prio=<span class="number">10</span> tid=<span class="number">0</span>x08726800 nid=<span class="number">0</span>x1e30 runnable  
+  
+<span class="string">"GC task thread#1 (ParallelGC)"</span> prio=<span class="number">10</span> tid=<span class="number">0</span>x08727c00 nid=<span class="number">0</span>x1e31 runnable
+</pre></td></tr></table></figure>
+
+<p>当虚拟机打开了parallel GC，这些线程就会定期地GC清理。</p>
+<h4 id="第五部分：JNI_global_references_count">第五部分：JNI global references count</h4>
+<figure class="highlight"><table><tr><td class="gutter"><pre>1
+</pre></td><td class="code"><pre>JNI <span class="keyword">global</span> references: <span class="number">2131</span>
+</pre></td></tr></table></figure>
+
+<p>JNI (Java Native Interface)全局引用也是受垃圾回收器管理。它的作用是防止回收到那些在native代码上还是被引用的，但是在java代码中却没有存活必要的引用。对于防止因为应用代码中直接使用native库或者第三方的一些监控工具的内存泄漏有非常大的帮助。</p>
+<h4 id="参考文献：">参考文献：</h4>
+<p><a href="http://peiliping.ixiezi.com/2012/04/15/jvm-jstack%E7%94%A8%E6%B3%95/" target="_blank">http://peiliping.ixiezi.com/2012/04/15/jvm-jstack%E7%94%A8%E6%B3%95/</a><br><a href="http://www.cnblogs.com/tomsheep/archive/2010/06/09/1754419.html" target="_blank">http://www.cnblogs.com/tomsheep/archive/2010/06/09/1754419.html</a><br><a href="http://www.javacodegeeks.com/2012/03/jvm-how-to-analyze-thread-dump.html" target="_blank">http://www.javacodegeeks.com/2012/03/jvm-how-to-analyze-thread-dump.html</a><br><a href="http://blog.csdn.net/fenglibing/article/details/6411940" target="_blank">http://blog.csdn.net/fenglibing/article/details/6411940</a></p>
+]]></content>
+    
+    
+      <category term="性能优化" scheme="www.itcamel.com/tags/%E6%80%A7%E8%83%BD%E4%BC%98%E5%8C%96/"/>
+    
+      <category term="JVM" scheme="www.itcamel.com/tags/JVM/"/>
+    
+      <category term="虚拟机" scheme="www.itcamel.com/tags/%E8%99%9A%E6%8B%9F%E6%9C%BA/"/>
+    
+      <category term="系统运维" scheme="www.itcamel.com/categories/%E7%B3%BB%E7%BB%9F%E8%BF%90%E7%BB%B4/"/>
+    
+  </entry>
+  
+  <entry>
+    <title><![CDATA[JVM实用commandline]]></title>
+    <link href="www.itcamel.com/2012/08/27/jvm-commondline/"/>
+    <id>www.itcamel.com/2012/08/27/jvm-commondline/</id>
+    <published>2012-08-27T15:12:09.000Z</published>
+    <updated>2014-06-26T14:56:10.000Z</updated>
+    <content type="html"><![CDATA[<h3 id="前言">前言</h3>
+<p>俗话说：好记性不如烂笔头。况且我的记性也不是太好。一些排查和定位JVM疑难问题的时候，往往需要用到非常规的Commandline。而掌握一个非常规命令，则犹如屠龙宝刀在手，削铁如泥，锋利之级。</p>
+<h3 id="jps">jps</h3>
+<p>jps -mlVv localhost<br>jps [ options ] [ hostid ]<br>其中，options可以用：<br>-q (安静)<br>-m (输出传递给main方法的参数)<br>-l (显示完整路径)<br>-v (显示传递给JVM的命令行参数)<br>-V (显示通过flag文件传递给JVM的参数)<br>-J (和其他Java工具类似用于传递参数给命令本身要调用的java进程)；<br>hostid是主机id，默认localhost。</p>
+<p><a id="more"></a></p>
+<h3 id="jstat">jstat</h3>
+<p>jstat工具特别强大，有众多的可选项，详细查看堆内各个部分的使用量，以及加载类的数量。使用时，需加上查看进程的进程id，和所选参数。以下详细介绍各个参数的意义。<br>jstat -class pid:显示加载class的数量，及所占空间等信息。<br>jstat -compiler pid:显示VM实时编译的数量等信息。<br>jstat -gc pid:可以显示gc的信息，查看gc的次数，及时间。其中最后五项，分别是young gc的次数，young gc的时间，full gc的次数，full gc的时间，gc的总时间。<br>jstat -gccapacity:可以显示，VM内存中三代（young,old,perm）对象的使用和占用大小，如：PGCMN显示的是最小perm的内存使用量，PGCMX显示的是perm的内存最大使用量，PGC是当前新生成的perm内存占用量，PC是但前perm内存占用量。其他的可以根据这个类推， OC是old内纯的占用量。<br>jstat -gcnew pid:new对象的信息。<br>jstat -gcnewcapacity pid:new对象的信息及其占用量。<br>jstat -gcold pid:old对象的信息。<br>jstat -gcoldcapacity pid:old对象的信息及其占用量。<br>jstat -gcpermcapacity pid: perm对象的信息及其占用量。<br>jstat -util pid:统计gc信息统计。<br>jstat -printcompilation pid:当前VM执行的信息。<br>除了以上一个参数外，还可以同时加上 两个数字，如：jstat -printcompilation 3024 250 6是每250毫秒打印一次，一共打印6次，还可以加上-h3每三行显示一下标题。</p>
+]]></content>
+    <summary type="html"><![CDATA[<h3 id="前言">前言</h3>
+<p>俗话说：好记性不如烂笔头。况且我的记性也不是太好。一些排查和定位JVM疑难问题的时候，往往需要用到非常规的Commandline。而掌握一个非常规命令，则犹如屠龙宝刀在手，削铁如泥，锋利之级。</p>
+<h3 id="jps">jps</h3>
+<p>jps -mlVv localhost<br>jps [ options ] [ hostid ]<br>其中，options可以用：<br>-q (安静)<br>-m (输出传递给main方法的参数)<br>-l (显示完整路径)<br>-v (显示传递给JVM的命令行参数)<br>-V (显示通过flag文件传递给JVM的参数)<br>-J (和其他Java工具类似用于传递参数给命令本身要调用的java进程)；<br>hostid是主机id，默认localhost。</p>
+<p>]]></summary>
+    
+      <category term="JVM" scheme="www.itcamel.com/tags/JVM/"/>
+    
+      <category term="jps" scheme="www.itcamel.com/tags/jps/"/>
+    
+      <category term="jstat" scheme="www.itcamel.com/tags/jstat/"/>
+    
+      <category term="系统运维" scheme="www.itcamel.com/categories/%E7%B3%BB%E7%BB%9F%E8%BF%90%E7%BB%B4/"/>
+    
+  </entry>
+  
+  <entry>
+    <title><![CDATA[SVNKit API冲突解决方案]]></title>
+    <link href="www.itcamel.com/2012/03/22/svnkit-conflict/"/>
+    <id>www.itcamel.com/2012/03/22/svnkit-conflict/</id>
+    <published>2012-03-22T13:16:48.000Z</published>
+    <updated>2014-06-26T14:56:54.000Z</updated>
+    <content type="html"><![CDATA[<p>SVNKit (JavaSVN) 是一个纯 Java 的 SVN 客户端库，使用 SVNKit 无需安装任何 SVN 的客户端，支持各种操作系统。不是开源软件，但是可以免费使用。<br><img src="http://dl.iteye.com/upload/attachment/0065/1938/14517c29-39b4-3f74-a481-faca2cf5b790.jpg" alt="SVNKit"></p>
+<p>其实还有一个众所周知的API JavaHL。特别是在svn相关的一些工具和插件上，两个API都被广泛使用。最经典的就是eclipse IDE上的Subclipse插件。在window-&gt;Prepfences-&gt;SVN-&gt;SVN接口一栏中，就有两个选项可供选择：JavaHL和SVNKIt。这里就不得不将下他们之间不得不说的故事了。</p>
+<p><img src="http://dl.iteye.com/upload/attachment/0065/1944/5e13575a-2fb1-3f53-a0ad-d6b7fd233e42.png" alt="SVNClient API"></p>
+<p>直白说，SVNKit就是JavaHL的加强版，一个高阶的API。目前网上有SVNKit开发相关的入门资料<a href="http://wenku.baidu.com/view/2f93208483d049649b665881.html" target="_blank">《SVNKit开发指南》</a>，这里就不在累赘了。这里只记录下资料内没谈到的冲突解决方案。</p>
+<p>在利用SVNKit进行代码update、svn branches switch、merge的时候经常会出现因为小组合作而出现的代码冲突的情况。在默认情况下，SVNUpdateClient、SVNDiffClient在碰到代码update或者merge冲突的时候，直接跳过中断，并跳过其他文件处理，并不提示任何异常。这样就给使用者造成了极大的困惑。目前提供一个方案解决下这样的尴尬。<br><a id="more"></a></p>
+<p>以SVNDiffClient进行merge操作为例：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre>1
+2
+3
+4
+5
+6
+</pre></td><td class="code"><pre><span class="comment">//获取SVNDiffClient       </span>
+SVNDiffClient diffClient = getSVNClientManager(svnModel).getDiffClient();  
+diffClient.setIgnoreExternals(<span class="keyword">false</span>);  
+DefaultSVNOptions options = (DefaultSVNOptions) diffClient.getOptions();  
+<span class="comment">//配置一个 ConflictResolverHandler  </span>
+options.setConflictHandler(<span class="keyword">new</span> ConflictResolverHandler())
+</pre></td></tr></table></figure>
+
+<p>ConflictResolverHandler这里模拟SVN在命令行终端的实行方式。当代码merge产生冲突的时候，弹出窗口，让用户选择Select: (p) postpone, (mf) mine-full, (tf) theirs-full 三种不同方式后，再进行merge。</p>
+<p>Conflictresolverhandler代码 </p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+</pre></td><td class="code"><pre><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">ConflictResolverHandler</span> <span class="keyword">implements</span> <span class="title">ISVNConflictHandler</span> {</span>  
+  
+    <span class="comment">/*  
+     * (non-Javadoc)  
+     *   
+     * @see  
+     * org.tmatesoft.svn.core.wc.ISVNConflictHandler#handleConflict(org.tmatesoft  
+     * .svn.core.wc.SVNConflictDescription)  
+     */</span>  
+    <span class="annotation">@Override</span>  
+    <span class="keyword">public</span> SVNConflictResult <span class="title">handleConflict</span>(  
+            SVNConflictDescription conflictDescription) <span class="keyword">throws</span> SVNException {  
+  
+        SVNConflictReason reason = conflictDescription.getConflictReason();  
+        SVNMergeFileSet mergeFiles = conflictDescription.getMergeFiles();  
+  
+        System.out.println(<span class="string">"Conflict discovered in:"</span> + mergeFiles.getWCFile());  
+        <span class="comment">// System.out.println(reason);  </span>
+        System.out  
+                .print(<span class="string">"Select: (p) postpone, (mf) mine-full, (tf) theirs-full     "</span>);  
+  
+        SVNConflictChoice choice = SVNConflictChoice.POSTPONE;  
+  
+        Scanner reader = <span class="keyword">new</span> Scanner(System.in);  
+        <span class="keyword">if</span> (reader.hasNextLine()) {  
+            String sVNConflictChoice = reader.nextLine();  
+            <span class="keyword">if</span> (sVNConflictChoice.equalsIgnoreCase(<span class="string">"mf"</span>)) {  
+                choice = SVNConflictChoice.MINE_FULL;  
+            } <span class="keyword">else</span> <span class="keyword">if</span> (sVNConflictChoice.equalsIgnoreCase(<span class="string">"tf"</span>)) {  
+                choice = SVNConflictChoice.THEIRS_FULL;  
+            }  
+        }  
+  
+        <span class="keyword">return</span> <span class="keyword">new</span> SVNConflictResult(choice, mergeFiles.getResultFile());  
+  
+    }  
+}
+</pre></td></tr></table></figure>
+
+<p>自此，SVNKit中的冲突解决问题就借助handler方式顺利解决。</p>
+]]></content>
+    <summary type="html"><![CDATA[<p>SVNKit (JavaSVN) 是一个纯 Java 的 SVN 客户端库，使用 SVNKit 无需安装任何 SVN 的客户端，支持各种操作系统。不是开源软件，但是可以免费使用。<br><img src="http://dl.iteye.com/upload/attachment/0065/1938/14517c29-39b4-3f74-a481-faca2cf5b790.jpg" alt="SVNKit"></p>
+<p>其实还有一个众所周知的API JavaHL。特别是在svn相关的一些工具和插件上，两个API都被广泛使用。最经典的就是eclipse IDE上的Subclipse插件。在window-&gt;Prepfences-&gt;SVN-&gt;SVN接口一栏中，就有两个选项可供选择：JavaHL和SVNKIt。这里就不得不将下他们之间不得不说的故事了。</p>
+<p><img src="http://dl.iteye.com/upload/attachment/0065/1944/5e13575a-2fb1-3f53-a0ad-d6b7fd233e42.png" alt="SVNClient API"></p>
+<p>直白说，SVNKit就是JavaHL的加强版，一个高阶的API。目前网上有SVNKit开发相关的入门资料<a href="http://wenku.baidu.com/view/2f93208483d049649b665881.html" target="_blank">《SVNKit开发指南》</a>，这里就不在累赘了。这里只记录下资料内没谈到的冲突解决方案。</p>
+<p>在利用SVNKit进行代码update、svn branches switch、merge的时候经常会出现因为小组合作而出现的代码冲突的情况。在默认情况下，SVNUpdateClient、SVNDiffClient在碰到代码update或者merge冲突的时候，直接跳过中断，并跳过其他文件处理，并不提示任何异常。这样就给使用者造成了极大的困惑。目前提供一个方案解决下这样的尴尬。<br>]]></summary>
+    
+      <category term="SVN" scheme="www.itcamel.com/tags/SVN/"/>
+    
+      <category term="SVNKit" scheme="www.itcamel.com/tags/SVNKit/"/>
+    
+      <category term="工具" scheme="www.itcamel.com/categories/%E5%B7%A5%E5%85%B7/"/>
+    
+  </entry>
+  
+  <entry>
+    <title><![CDATA[Linux服务器性能小结]]></title>
+    <link href="www.itcamel.com/2011/10/01/linux-server/"/>
+    <id>www.itcamel.com/2011/10/01/linux-server/</id>
+    <published>2011-10-01T13:47:26.000Z</published>
+    <updated>2014-06-26T14:58:00.000Z</updated>
+    <content type="html"><![CDATA[<h3 id="服务器性能因素">服务器性能因素</h3>
+<ul>
+<li>CPU</li>
+<li>内存</li>
+<li>磁盘I/O带宽</li>
+<li>网络I/O带宽</li>
+</ul>
+<h4 id="Load">Load</h4>
+<p>系统负载指运行队列的平均长度，也就是等待CPU的平均进程数。Load越高说明系统响应越慢，如果load是0，代表进程不需要等待，立刻就能获得cpu运行。可以通过查询文件/proc/loadavg获取系统在前一分钟、前五分钟和前十五分钟的平均负载以及当前运行的进程、系统的进程数和上一次调度运行的进程。</p>
+<pre><code>
+justin@junjun:/proc$ cat/proc/loadavg
+0.71 0.70 0.63 1/403 5111
+</code></pre>
+<a id="more"></a>
+在linux系统中，也可直接通过命令行 “w”或者“uptime”查看，如下：
+<pre><code>
+16:10:22 up 1 day, 4:18,  3 users,  load average: 0.34, 0.50, 0.52
+USER     TTY      FROM              LOGIN@  IDLE   JCPU   PCPU WHAT
+justin   tty7     :0               Tue11   28:19m 10:15   0.22s gnome-session
+justin   pts/0    :0.0             Tue11   28:17m 2:22   0.00s /bin/bash./jettyctl.sh
+justin   pts/1    :0.0             16:08    0.00s 0.17s  0.00s w
+</code></pre>
+
+<h4 id="CPU_usage">CPU usage</h4>
+<p>系统的CPU使用率。可以用“top”命令动态的显示当前系统进程用户的使用情况。<br><img src="http://dl.iteye.com/upload/attachment/563507/c7fc33d5-934f-3efd-91d2-06c90f3f4f5e.png" alt="top"><br><strong><strong> 前五行是系统整体的统计信息。</strong></strong></p>
+<ol>
+<li>第一行是任务队列信息，同 uptime 命令的执行结果。<br>内容：当前时间；系统运行时间，格式为时:分；当前登录用户数；系统负载，即任务队列的平均长度。</li>
+<li>第二行为进程和CPU的信息。当有多个CPU时，这些内容可能会超过两行。<br><strong> 进程内容： </strong><br>175 total-进程总数；<br>1 running-正在运行的进程数；<br>174 sleeping-睡眠的进程数；<br>0 stopped-停止的进程数；<br>0 zombie-僵尸进程数<br><strong> CPU内容： </strong><br>22.0%-us用户空间占用CPU百分比;<br>20.7%sy-内核空间占用CPU百分比;<br>1.1%ni-用户进程空间内改变过优先级的进程占用CPU百分比;<br>52.7%id-空闲CPU百分比;<br>3.3%wa-等待输入输出的CPU时间百分比<br>0.0%hi;<br>0.2%si swap in-表示虚拟内存的页导入，即从SWAPDISK交换到RAM;<br>0.0%st swap out-表示虚拟内存的页导出，即从RAM交换到SWAPDISK。</li>
+</ol>
+<p><strong><strong> 五行后面是每个进程的信息。 </strong></strong></p>
+<ol>
+<li>PR：操作系统给进程的安排的优先级。这个值标示进程调度器分配给进程的时间片长度。单位是时钟个数。如果一个Linux系统的时间片是10ms，那么PID是2718的进程在执行了200ms后，才会进行进程切换。 </li>
+<li>RES：进程占用的物理内存大小             </li>
+<li>VIRT：物理内存+虚拟内存。</li>
+</ol>
+<h4 id="吞吐率：">吞吐率：</h4>
+<p>服务器单位时间内处理的请求数，一般用来描述并发能力，当然谈吞吐率的前提是并发用户数。不同的并发用户数下，吞吐率自然大不相同。单位是“请求数 /秒”。吞吐量分为网络吞吐量和事务吞吐量，当作为事务吞吐量时，采用TPS来衡量。目前线上环境Apache没有mod_status模块，不能很方便的查询。</p>
+<h4 id="TPS：">TPS：</h4>
+<p>服务器每秒处理的事务数。PV在性能测试中的表现形式是以TPS来体现的，两者有一个转换公式，如下：<br>TPS平均值 =((PV<em>80%)/(24</em>60<em>60</em>40%))/服务器数量 =  pv/s<br>TPS峰值 =(((PV<em>80%)/(24</em>60<em>60</em>40%))*1.6) /服务器数量=  pv/s ，这个和我们经常说的“2-8原则”贴近。</p>
+<h3 id="性能分析工具和命令">性能分析工具和命令</h3>
+<ol>
+<li><p>常用系统命令<br>vmstat、sar、iostat、netstat、free、ps、top等</p>
+</li>
+<li><p>常用组合方式</p>
+<ul>
+<li>用vmstat、sar、iostat检测是否是CPU瓶颈</li>
+<li>用free、vmstat检测是否是内存瓶颈</li>
+<li>用iostat检测是否是磁盘I/O瓶颈</li>
+<li>用netstat检测是否是网络带宽瓶颈</li>
+</ul>
+</li>
+<li><p>实践</p>
+</li>
+</ol>
+<ul>
+<li>Vmstat<br>每一秒钟采集一次数据，一直采集直至程序结束。<br><img src="http://dl.iteye.com/upload/attachment/563509/fb5200be-743f-3dbe-b47f-2b1187c8c261.png" alt="Vmstat"></li>
+</ul>
+<p>列表含义：</p>
+<p><em>procs</em><br>     r：运行和等待cpu时间片的进程数，这个值如果长期大于系统CPU的个数，说明CPU不足，需要增加CPU。<br>     b：在等待资源的进程数，比如正在等待I/O、或者内存交换等。</p>
+<p><em>memory</em><br>     swpd: 虚拟内存使用情况，单位：KB<br>     free: 空闲的内存，单位KB<br>     buff: 被用来做为缓存的内存数，一般对块设备的读写才需要缓冲，单位：KB<br>     cache:表示page cached的内存数量，一般作为文件系统cached，频繁访问的文件都会被cached，如果cache值较大，说明cached的文件数较多，如果此时IO中bi比较小，说明文件系统效率比较好。</p>
+<p><em>swap</em><br>     si: 从磁盘交换到内存的交换页数量，单位：KB/秒<br>     so: 从内存交换到磁盘的交换页数量，单位：KB/秒</p>
+<p><em>io</em><br>     bi: 发送到块设备的块数，单位：块/秒<br>     bo: 从块设备接收到的块数，单位：块/秒</p>
+<p><em>system</em><br>     in: 每秒的中断数，包括时钟中断<br>     cs: 每秒的环境（上下文）切换次数.注意：如果 r经常大于 4 ，且id经常少于40，表示cpu的负荷很重;如果si，so 长期不等于0，表示内存不足;如果disk 经常不等于0， 且在 b中的队列大于3， 表示 io性能不好。</p>
+<p><em>cpu</em><br>     us：用户进程消耗的CPU 时间百分比。us的值比较高时，说明用户进程消耗的cpu时间多，但是如果长期大于50%，就需要考虑优化程序或算法。<br>     sy：内核进程消耗的CPU时间百分比。Sy的值较高时，说明内核消耗的CPU资源很多。根据经验，us+sy的参考值为70%，如果us+sy大于 70%说明可能存在CPU资源不足。</p>
+<ul>
+<li>Sar分析cpu性能<br><img src="http://dl.iteye.com/upload/attachment/563511/a82aca47-4898-3d35-b31d-21dd507fd617.png" alt="sar"><br>命令行 sar -u 1 4，结果<br>列表说明：<br>%user：用户进程消耗的CPU 时间百分比。<br>%nice：运行正常进程所消耗的CPU 时间百分比。<br>%system：系统进程消耗的CPU时间百分比。<br>%iowaitIO：等待所占用的CPU时间百分比。<br>%steal：在内存相对紧张的环境下, 被强制等待（involuntary wait）虚拟CPU的时间<br>%idle：CPU处在空闲状态的时间百分比。<br>具体参考：<a href="http://ilinuxkernel.com/?p=333" target="_blank">LinuxCPU利用率计算原理及内核实现</a></li>
+<li>Free评估内存性能<br><img src="http://dl.iteye.com/upload/attachment/563513/a4ca6a79-9d3e-3792-a22a-8bed0b988b4b.jpg" alt="free"><br>不详细解释。</li>
+<li>iostat评估I/O性能<br><img src="http://dl.iteye.com/upload/attachment/563515/3f73867a-6409-36a1-9de4-27a387a86cbd.png" alt="iostat -d 2"><br>各列含义：<br>tps平均每秒钟的IO请求次数<br>Blk_read/s表示每秒读取的数据块数。<br>Blk_wrtn/s表示每秒写入的数据块数。<br>Blk_read表示读取的所有块数。<br>Blk_wrtn表示写入的所有块数。<br>如果Blk_wrtn/s值很大，表示磁盘的写操作很频繁，可以考虑优化磁盘或者优化程序，如果Blk_read/s值很大，表示磁盘直接读取操作很多，可以将读取的数据放入内存中进行操作。对于这两个选项的值没有一个固定的大小，根据系统应用的不同，会有不同的值，但是有一个规则还是可以遵循的：长期的、超大的数据读写，肯定是不正常的，这种情况一定会影响系统性能。</li>
+<li>netstat评估网络性能<br>netstat -antl  查看所有tcp status<br><pre><code><br>justin@daxiong-x23:~/blog$ netstat -antl<br>Active Internet connections (servers and established)<br>Proto Recv-Q Send-Q Local Address           Foreign Address         State<br>tcp        0      0 0.0.0.0:4000            0.0.0.0:<em>               LISTEN<br>tcp        0      0 127.0.0.1:27017         0.0.0.0:</em>               LISTEN<br>tcp        0      0 127.0.0.1:28017         0.0.0.0:<em>               LISTEN<br>tcp        0      0 127.0.1.1:53            0.0.0.0:</em>               LISTEN<br>tcp        0      0 0.0.0.0:22              0.0.0.0:<em>               LISTEN<br>tcp        0      0 127.0.0.1:631           0.0.0.0:</em>               LISTEN<br>tcp        0      0 127.0.0.1:29754         0.0.0.0:*               LISTEN<br></code></pre><br>注意：可以通过netstat查看是否timewait过多的情况，导致端口不够用，在短连接服务中且大并发情况下，要不系统的 net.ipv4.tcp_tw_reuse、net.ipv4.tcp_tw_recycle两个选项打开，允许端口重用。具体这两个属性如何用，移步线上/etc/sysctl.conf文件配置，有注释。</li>
+<li>sar查看网卡性能<br>sar -n DEV 2 2<br><img src="http://dl.iteye.com/upload/attachment/563521/37274ddf-afc0-32f9-a951-79e00cb178a5.png" alt="sar -n DEV 2 2"><br>各列含义：<br>IFACELAN接口<br>rxpck/s每秒钟接收的数据包<br>txpck/s每秒钟发送的数据包<br>rxbyt/s每秒钟接收的字节数<br>txbyt/s每秒钟发送的字节数<br>rxcmp/s每秒钟接收的压缩数据包<br>txcmp/s每秒钟发送的压缩数据包<br>rxmcst/s每秒钟接收的多播数据包<br>其实中间的IFACELAN bond0是虚拟设备。在RH中，多个物理网卡帮定为一个逻辑bonding设备，通过把多个物理网卡帮定为一个逻辑设备，可以实现增加带宽吞吐量，提供冗余。</li>
+</ul>
+<h4 id="参考文档">参考文档</h4>
+<p><a href="http://www.douban.com/group/topic/2537474/" target="_blank">RHLinux下双网卡bonding</a><br><a href="http://hi.baidu.com/nan5715077/blog/item/0cedf2247c06ac2cd5074246.html" target="_blank">linuxbonding实现冗余和负载均衡</a><br><a href="http://hi.baidu.com/colddloc/blog/item/d63e16fd6965cc1109244d94.html" target="_blank">sar是一个优秀的一般性能监视工具</a></p>
+]]></content>
+    <summary type="html"><![CDATA[<h3 id="服务器性能因素">服务器性能因素</h3>
+<ul>
+<li>CPU</li>
+<li>内存</li>
+<li>磁盘I/O带宽</li>
+<li>网络I/O带宽</li>
+</ul>
+<h4 id="Load">Load</h4>
+<p>系统负载指运行队列的平均长度，也就是等待CPU的平均进程数。Load越高说明系统响应越慢，如果load是0，代表进程不需要等待，立刻就能获得cpu运行。可以通过查询文件/proc/loadavg获取系统在前一分钟、前五分钟和前十五分钟的平均负载以及当前运行的进程、系统的进程数和上一次调度运行的进程。</p>
+<pre><code>
+justin@junjun:/proc$ cat/proc/loadavg
+0.71 0.70 0.63 1/403 5111
+</code></pre>
+]]></summary>
+    
+      <category term="linux" scheme="www.itcamel.com/tags/linux/"/>
+    
+      <category term="性能，优化，服务器，负载" scheme="www.itcamel.com/tags/%E6%80%A7%E8%83%BD%EF%BC%8C%E4%BC%98%E5%8C%96%EF%BC%8C%E6%9C%8D%E5%8A%A1%E5%99%A8%EF%BC%8C%E8%B4%9F%E8%BD%BD/"/>
+    
+      <category term="Linux系统知识" scheme="www.itcamel.com/categories/Linux%E7%B3%BB%E7%BB%9F%E7%9F%A5%E8%AF%86/"/>
+    
+  </entry>
+  
+</feed>
